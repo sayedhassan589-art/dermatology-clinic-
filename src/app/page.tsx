@@ -40,6 +40,12 @@ import {
   createLaserNoteAPI,
   deleteLaserNoteAPI,
   getLaserNotesAPI,
+  getAppointmentsAPI,
+  createAppointmentAPI,
+  updateAppointmentAPI,
+  deleteAppointmentAPI,
+  getAppointmentStatsAPI,
+  getAvailableSlotsAPI,
   getTransactionsAPI,
   createTransactionAPI,
   updateTransactionAPI,
@@ -161,6 +167,10 @@ import {
   ArrowLeftRight,
   Sparkles,
   Flame,
+  CalendarPlus,
+  CalendarCheck,
+  CalendarClock,
+  UserMinus,
 } from 'lucide-react'
 
 // ─── Helpers ───────────────────────────────────────────────────
@@ -299,7 +309,7 @@ type MainTab = 'dashboard' | 'patients' | 'visits' | 'sessions' | 'laser' | 'mor
 type SubView = 'list' | 'detail' | 'form'
 type PatientDetailTab = 'visits' | 'sessions' | 'notes' | 'alerts' | 'laser'
 type ReportSubTab = 'daily' | 'weekly' | 'monthly'
-type MoreSubTab = 'list' | 'services' | 'alerts' | 'finance' | 'reports' | 'settings'
+type MoreSubTab = 'list' | 'booking' | 'services' | 'alerts' | 'finance' | 'reports' | 'settings'
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP COMPONENT
@@ -422,6 +432,19 @@ export default function Home() {
   // ─── Backup State ─────────────────────────────────────────
   const [backups, setBackups] = useState<any[]>([])
   const [backupLoading, setBackupLoading] = useState(false)
+
+  // ─── Appointments / Booking State ────────────────────────
+  const [appointments, setAppointments] = useState<any[]>([])
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false)
+  const [appointmentStats, setAppointmentStats] = useState<any>(null)
+  const [appointmentStatsLoading, setAppointmentStatsLoading] = useState(false)
+  const [addAppointmentOpen, setAddAppointmentOpen] = useState(false)
+  const [editAppointmentOpen, setEditAppointmentOpen] = useState(false)
+  const [appointmentForm, setAppointmentForm] = useState({ patientId: '', appointmentDate: '', time: '13:00', duration: '20', type: 'new_visit', status: 'pending', paymentMethod: '', amount: '', notes: '' })
+  const [availableSlots, setAvailableSlots] = useState<any[]>([])
+  const [slotsLoading, setSlotsLoading] = useState(false)
+  const [selectedAppointmentDate, setSelectedAppointmentDate] = useState(todayStr())
+  const [appointmentView, setAppointmentView] = useState<'day' | 'list'>('day')
 
   // Fetch backups when settings tab is open
   useEffect(() => {
@@ -629,6 +652,34 @@ export default function Home() {
     setWaitingLoading(false)
   }, [])
 
+  // ─── Appointments ─────────────────────────────────────
+  const fetchAppointments = useCallback(async (params?: any) => {
+    setAppointmentsLoading(true)
+    try {
+      const data = await getAppointmentsAPI(params)
+      setAppointments(data.appointments || [])
+    } catch { /* silent */ }
+    setAppointmentsLoading(false)
+  }, [])
+
+  const fetchAppointmentStats = useCallback(async () => {
+    setAppointmentStatsLoading(true)
+    try {
+      const data = await getAppointmentStatsAPI()
+      setAppointmentStats(data)
+    } catch { /* silent */ }
+    setAppointmentStatsLoading(false)
+  }, [])
+
+  const fetchAvailableSlots = useCallback(async (date: string) => {
+    setSlotsLoading(true)
+    try {
+      const data = await getAvailableSlotsAPI(date)
+      setAvailableSlots(data.slots || [])
+    } catch { setAvailableSlots([]) }
+    setSlotsLoading(false)
+  }, [])
+
   // ─── Tab change: load data ────────────────────────────────
   useEffect(() => {
     if (!isAuthenticated) return
@@ -649,6 +700,7 @@ export default function Home() {
       if (moreSubTab === 'services') void clinic.fetchServices()
       else if (moreSubTab === 'alerts') void clinic.fetchAlerts()
       else if (moreSubTab === 'finance') void fetchFinanceData()
+      else if (moreSubTab === 'booking') { void fetchAppointments(); void fetchAppointmentStats() }
       else if (moreSubTab === 'reports') {
         if (reportSubTab === 'daily') void clinic.fetchDailyReport()
         else if (reportSubTab === 'weekly') void clinic.fetchWeeklyReport()
@@ -984,6 +1036,7 @@ export default function Home() {
       else if (deleteTarget.type === 'laser_session') await deleteLaserSessionAPI(deleteTarget.id)
       else if (deleteTarget.type === 'package') await deleteLaserPackageAPI(deleteTarget.id)
       else if (deleteTarget.type === 'transaction') await deleteTransactionAPI(deleteTarget.id)
+      else if (deleteTarget.type === 'appointment') await deleteAppointmentAPI(deleteTarget.id)
       toast.success('تم الحذف بنجاح')
       clinic.fetchDashboard()
       clinic.fetchPatients()
@@ -994,6 +1047,8 @@ export default function Home() {
       fetchLaserRecords()
       fetchLaserStats()
       fetchFinanceData()
+      fetchAppointments()
+      fetchAppointmentStats()
       if (selectedPatientId) clinic.fetchPatientDetail(selectedPatientId)
       if (deleteTarget.type === 'laser_session' && selectedLaserCase) {
         void getLaserRecordAPI(selectedLaserCase.id).then(d => setSelectedLaserCase(d.record))
@@ -1319,6 +1374,92 @@ export default function Home() {
       toast.success('تم حفظ إعدادات الليزر')
     } catch (err: any) {
       toast.error(err.message || 'خطأ في حفظ الإعدادات')
+    }
+  }
+
+  // ─── Appointment CRUD ──────────────────────────────────
+  const handleCreateAppointment = async () => {
+    if (!appointmentForm.patientId || !appointmentForm.appointmentDate || !appointmentForm.time) {
+      toast.error('يرجى اختيار المريض والتاريخ والوقت')
+      return
+    }
+    try {
+      const dateTime = `${appointmentForm.appointmentDate}T${appointmentForm.time}:00`
+      await createAppointmentAPI({
+        ...appointmentForm,
+        appointmentDate: dateTime,
+        duration: parseInt(appointmentForm.duration),
+        amount: appointmentForm.amount ? parseFloat(appointmentForm.amount) : null,
+        paymentMethod: appointmentForm.paymentMethod || null,
+        paymentStatus: appointmentForm.paymentMethod ? 'paid' : 'unpaid',
+        createdBy: user?.id,
+      })
+      toast.success('تم حجز الموعد بنجاح')
+      setAddAppointmentOpen(false)
+      void fetchAppointments({ date: appointmentForm.appointmentDate })
+      void fetchAppointmentStats()
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في حجز الموعد')
+    }
+  }
+
+  const handleUpdateAppointment = async () => {
+    if (!editItem) return
+    try {
+      const dateTime = `${appointmentForm.appointmentDate || editItem.appointmentDate?.toISOString().slice(0,10)}T${appointmentForm.time}:00`
+      await updateAppointmentAPI(editItem.id, {
+        appointmentDate: dateTime,
+        duration: parseInt(appointmentForm.duration),
+        type: appointmentForm.type,
+        status: appointmentForm.status,
+        paymentMethod: appointmentForm.paymentMethod || null,
+        paymentStatus: appointmentForm.paymentMethod ? 'paid' : 'unpaid',
+        amount: appointmentForm.amount ? parseFloat(appointmentForm.amount) : null,
+        notes: appointmentForm.notes,
+      })
+      toast.success('تم تحديث الموعد')
+      setEditAppointmentOpen(false)
+      setEditItem(null)
+      void fetchAppointments({ date: selectedAppointmentDate })
+      void fetchAppointmentStats()
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في تحديث الموعد')
+    }
+  }
+
+  const openEditAppointment = (appt: any) => {
+    setEditItem(appt)
+    const d = new Date(appt.appointmentDate)
+    setAppointmentForm({
+      patientId: appt.patientId,
+      appointmentDate: d.toISOString().slice(0, 10),
+      time: `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`,
+      duration: String(appt.duration || 20),
+      type: appt.type || 'new_visit',
+      status: appt.status || 'pending',
+      paymentMethod: appt.paymentMethod || '',
+      amount: String(appt.amount || ''),
+      notes: appt.notes || '',
+    })
+    setEditAppointmentOpen(true)
+  }
+
+  const handleSendAppointmentWhatsApp = async (appt: any) => {
+    if (!appt.patient?.phone) { toast.error('لا يوجد رقم هاتف للمريض'); return }
+    try {
+      const d = new Date(appt.appointmentDate)
+      const typeLabels: Record<string, string> = { new_visit: 'كشف جديد', revisit: 'إعادة كشف', laser: 'جلسة ليزر', treatment: 'جلسة علاج', followup: 'متابعة' }
+      const timeStr = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', calendar: 'gregory' })
+      const dateStr = d.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', calendar: 'gregory' })
+      const msg = `*عيادة المغازى - تأكيد موعد*\n\nالمرضي/ة: ${appt.patient.name}\nالتاريخ: ${dateStr}\nالساعة: ${timeStr}\nنوع الكشف: ${typeLabels[appt.type] || appt.type}\n\nننتظركم في العيادة 🏥`
+      const phone = appt.patient.phone.replace(/[^0-9]/g, '')
+      const formatted = phone.startsWith('0') ? `20${phone.slice(1)}` : phone
+      window.open(`https://wa.me/${formatted}?text=${encodeURIComponent(msg)}`, '_blank')
+      await updateAppointmentAPI(appt.id, { whatsappSent: true })
+      toast.success('تم فتح واتساب لإرسال التأكيد')
+      void fetchAppointments({ date: selectedAppointmentDate })
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ')
     }
   }
 
@@ -3104,6 +3245,142 @@ export default function Home() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ─── ADD APPOINTMENT DIALOG ────────────────────── */}
+      <Dialog open={addAppointmentOpen} onOpenChange={setAddAppointmentOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarPlus className="w-5 h-5 text-cyan-500" />
+              حجز موعد جديد
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">المريض</Label>
+              <PatientSearchSelect patients={clinic.patients} value={appointmentForm.patientId} onChange={v => setAppointmentForm(p => ({ ...p, patientId: v }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">التاريخ</Label>
+                <Input type="date" value={appointmentForm.appointmentDate} onChange={e => { setAppointmentForm(p => ({ ...p, appointmentDate: e.target.value })); fetchAvailableSlots(e.target.value) }} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">الوقت</Label>
+                <Select value={appointmentForm.time} onValueChange={v => setAppointmentForm(p => ({ ...p, time: v }))}>
+                  <SelectTrigger dir="ltr"><SelectValue placeholder="اختر الوقت" /></SelectTrigger>
+                  <SelectContent>
+                    {slotsLoading ? <SelectItem value="" disabled>جاري التحميل...</SelectItem> :
+                    availableSlots.filter(s => s.available).length === 0 ? <SelectItem value="" disabled>لا توجد مواعيد متاحة</SelectItem> :
+                    availableSlots.filter(s => s.available).map(s => <SelectItem key={s.time} value={s.time}>{s.display}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">نوع الكشف</Label>
+                <Select value={appointmentForm.type} onValueChange={v => { const t = APPOINTMENT_TYPES.find(x => x.value === v); setAppointmentForm(p => ({ ...p, type: v, duration: String(t?.duration || 20) })) }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{APPOINTMENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label} ({t.duration}د)</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">المدة (دقيقة)</Label>
+                <Input type="number" value={appointmentForm.duration} onChange={e => setAppointmentForm(p => ({ ...p, duration: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">طريقة الدفع</Label>
+                <Select value={appointmentForm.paymentMethod} onValueChange={v => setAppointmentForm(p => ({ ...p, paymentMethod: v }))}>
+                  <SelectTrigger><SelectValue placeholder="غير محدد" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">كاش</SelectItem>
+                    <SelectItem value="vodafone_cash">فودافون كاش</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">المبلغ</Label>
+                <Input type="number" value={appointmentForm.amount} onChange={e => setAppointmentForm(p => ({ ...p, amount: e.target.value }))} placeholder="0" dir="ltr" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">ملاحظات</Label>
+              <Textarea value={appointmentForm.notes} onChange={e => setAppointmentForm(p => ({ ...p, notes: e.target.value }))} placeholder="ملاحظات إضافية..." className="min-h-[60px] text-sm" />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setAddAppointmentOpen(false)}>إلغاء</Button>
+            <Button className="bg-gradient-to-l from-cyan-500 to-blue-600 text-white" onClick={handleCreateAppointment}>تأكيد الحجز</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── EDIT APPOINTMENT DIALOG ────────────────────── */}
+      <Dialog open={editAppointmentOpen} onOpenChange={setEditAppointmentOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit3 className="w-5 h-5 text-cyan-500" />
+              تعديل الموعد
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">التاريخ</Label>
+                <Input type="date" value={appointmentForm.appointmentDate} onChange={e => setAppointmentForm(p => ({ ...p, appointmentDate: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">الوقت</Label>
+                <Input type="time" value={appointmentForm.time} onChange={e => setAppointmentForm(p => ({ ...p, time: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">نوع الكشف</Label>
+                <Select value={appointmentForm.type} onValueChange={v => setAppointmentForm(p => ({ ...p, type: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{APPOINTMENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">الحالة</Label>
+                <Select value={appointmentForm.status} onValueChange={v => setAppointmentForm(p => ({ ...p, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.entries(APPOINTMENT_STATUS_MAP).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">طريقة الدفع</Label>
+                <Select value={appointmentForm.paymentMethod} onValueChange={v => setAppointmentForm(p => ({ ...p, paymentMethod: v }))}>
+                  <SelectTrigger><SelectValue placeholder="غير محدد" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">كاش</SelectItem>
+                    <SelectItem value="vodafone_cash">فودافون كاش</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">المبلغ</Label>
+                <Input type="number" value={appointmentForm.amount} onChange={e => setAppointmentForm(p => ({ ...p, amount: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">ملاحظات</Label>
+              <Textarea value={appointmentForm.notes} onChange={e => setAppointmentForm(p => ({ ...p, notes: e.target.value }))} className="min-h-[60px] text-sm" />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setEditAppointmentOpen(false)}>إلغاء</Button>
+            <Button className="bg-gradient-to-l from-cyan-500 to-blue-600 text-white" onClick={handleUpdateAppointment}>حفظ التعديلات</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -4651,10 +4928,232 @@ function ReportsTab({ reportSubTab, onSubTabChange, dailyReport, weeklyReport, m
 }
 
 // ═══════════════════════════════════════════════════════════════
+// BOOKING SECTION - Professional Appointment System
+// ═══════════════════════════════════════════════════════════════
+const APPOINTMENT_TYPES = [
+  { value: 'new_visit', label: 'كشف جديد', color: 'bg-blue-100 text-blue-700', duration: 20 },
+  { value: 'revisit', label: 'إعادة كشف', color: 'bg-emerald-100 text-emerald-700', duration: 15 },
+  { value: 'laser', label: 'جلسة ليزر', color: 'bg-amber-100 text-amber-700', duration: 30 },
+  { value: 'treatment', label: 'جلسة علاج', color: 'bg-purple-100 text-purple-700', duration: 25 },
+  { value: 'followup', label: 'متابعة', color: 'bg-cyan-100 text-cyan-700', duration: 10 },
+]
+
+const APPOINTMENT_STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
+  pending: { label: 'قيد الانتظار', color: 'text-yellow-700', bg: 'bg-yellow-100' },
+  confirmed: { label: 'مؤكد', color: 'text-emerald-700', bg: 'bg-emerald-100' },
+  completed: { label: 'مكتمل', color: 'text-blue-700', bg: 'bg-blue-100' },
+  cancelled: { label: 'ملغي', color: 'text-red-700', bg: 'bg-red-100' },
+  no_show: { label: 'لم يحضر', color: 'text-gray-700', bg: 'bg-gray-100' },
+}
+
+function BookingSection({ appointments, loading, stats, statsLoading, patients, onAdd, onEdit, onDelete, onSendWhatsApp, onRefresh, selectedDate, onDateChange }: any) {
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+
+  const dayName = new Date(selectedDate).toLocaleDateString('ar-EG', { weekday: 'long', calendar: 'gregory' })
+  const isFriday = new Date(selectedDate).getDay() === 5
+
+  const filtered = appointments.filter((a: any) => {
+    const matchSearch = !search || a.patient?.name?.includes(search) || a.patient?.phone?.includes(search)
+    const matchStatus = !statusFilter || a.status === statusFilter
+    const matchType = !typeFilter || a.type === typeFilter
+    return matchSearch && matchStatus && matchType
+  })
+
+  const getApptType = (val: string) => APPOINTMENT_TYPES.find(t => t.value === val) || { label: val, color: 'bg-gray-100 text-gray-700' }
+  const getStatus = (val: string) => APPOINTMENT_STATUS_MAP[val] || { label: val, color: 'text-gray-600', bg: 'bg-gray-100' }
+
+  return (
+    <div className="space-y-4">
+      {/* Stats Row */}
+      {stats?.summary && (
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { label: 'حجوزات اليوم', value: stats.summary.today, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+            { label: 'مؤكد', value: stats.summary.confirmed, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { label: 'اكتمل', value: stats.summary.completed, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'لم يحضر', value: stats.summary.noShow, color: 'text-red-600', bg: 'bg-red-50' },
+          ].map(s => (
+            <Card key={s.label} className={s.bg}>
+              <CardContent className="p-3 text-center">
+                <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
+                <p className="text-[10px] text-muted-foreground">{s.label}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Date Picker + Actions */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-wrap gap-2 items-end">
+            <div className="flex-1 min-w-[150px]">
+              <Label className="text-xs mb-1 block">تاريخ اليوم</Label>
+              <div className="flex gap-2">
+                <Input type="date" value={selectedDate} onChange={e => onDateChange(e.target.value)} dir="ltr" className="h-9 text-sm flex-1" />
+                <div className="flex gap-1">
+                  <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => onDateChange(new Date(Date.now() - 86400000).toISOString().slice(0,10))}><ChevronRight className="w-4 h-4" /></Button>
+                  <Button variant="outline" size="sm" className="h-9 text-xs px-2" onClick={() => onDateChange(todayStr())}>اليوم</Button>
+                  <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => onDateChange(new Date(Date.now() + 86400000).toISOString().slice(0,10))}><ChevronLeft className="w-4 h-4" /></Button>
+                </div>
+              </div>
+            </div>
+            <div className="min-w-[120px]">
+              <Label className="text-xs mb-1 block">الحالة</Label>
+              <Select value={statusFilter} onValueChange={v => setStatusFilter(v === 'all' ? '' : v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="الكل" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">الكل</SelectItem>
+                  {Object.entries(APPOINTMENT_STATUS_MAP).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-[110px]">
+              <Label className="text-xs mb-1 block">النوع</Label>
+              <Select value={typeFilter} onValueChange={v => setTypeFilter(v === 'all' ? '' : v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="الكل" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">الكل</SelectItem>
+                  {APPOINTMENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-1">
+              <Button variant="outline" size="icon" className="h-9" onClick={onRefresh}><RefreshCw className="w-4 h-4" /></Button>
+              <Button className="bg-gradient-to-l from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 h-9 text-white shadow-sm" onClick={onAdd} disabled={isFriday}>
+                <CalendarPlus className="w-4 h-4 ml-1" />حجز جديد
+              </Button>
+            </div>
+          </div>
+          {isFriday && (
+            <div className="mt-2 p-2 bg-red-50 dark:bg-red-950/20 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-600">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>العيادة مغلقة يوم الجمعة</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Day Header */}
+      <div className="flex items-center gap-2">
+        <CalendarDays className="w-4 h-4 text-cyan-600" />
+        <span className="text-sm font-bold">{dayName}</span>
+        <span className="text-xs text-muted-foreground">— {filtered.length} حجز</span>
+      </div>
+
+      {/* Appointments List */}
+      {loading ? (
+        <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-10">
+          <CalendarClock className="w-14 h-14 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="font-medium text-muted-foreground">لا توجد حجوزات في هذا اليوم</p>
+          {!isFriday && <p className="text-xs text-muted-foreground mt-1">اضغط &quot;حجز جديد&quot; لإضافة موعد</p>}
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-[calc(100vh-420px)] overflow-y-auto">
+          {filtered.map((appt: any) => {
+            const d = new Date(appt.appointmentDate)
+            const timeStr = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true, calendar: 'gregory' })
+            const st = getStatus(appt.status)
+            const tp = getApptType(appt.type)
+            const isPast = d < new Date()
+            const isCompleted = appt.status === 'completed'
+
+            return (
+              <Card key={appt.id} className={`hover:shadow-md transition-all ${isCompleted ? 'opacity-60' : ''} ${appt.status === 'confirmed' ? 'border-l-4 border-l-emerald-500' : appt.status === 'cancelled' ? 'border-l-4 border-l-red-400' : 'border-l-4 border-l-cyan-400'}`}>
+                <CardContent className="p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {/* Time Block */}
+                      <div className="text-center shrink-0 bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-950/30 dark:to-blue-950/30 rounded-xl p-2 min-w-[56px]">
+                        <p className="text-xs font-bold text-cyan-700">{timeStr}</p>
+                        <p className="text-[10px] text-muted-foreground">{appt.duration || 20}د</p>
+                      </div>
+                      {/* Patient Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                            {appt.patient?.name?.charAt(0) || '?'}
+                          </div>
+                          <p className="font-medium text-sm truncate">{appt.patient?.name || '—'}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge className={`text-[10px] ${tp.color}`}>{tp.label}</Badge>
+                          <Badge className={`text-[10px] ${st.bg} ${st.color}`}>{st.label}</Badge>
+                          {appt.paymentMethod && <span className="text-[10px] text-muted-foreground">{appt.paymentMethod === 'cash' ? '💵 كاش' : '📱 فودافون كاش'}</span>}
+                          {appt.amount && <span className="text-[10px] text-emerald-600 font-medium">{formatCurrency(appt.amount)}</span>}
+                        </div>
+                        {appt.notes && <p className="text-[10px] text-muted-foreground mt-1 truncate">{appt.notes}</p>}
+                        {appt.patient?.phone && <p className="text-[10px] text-muted-foreground">{appt.patient.phone}</p>}
+                      </div>
+                    </div>
+                    {/* Actions */}
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {!appt.whatsappSent && appt.status !== 'cancelled' && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-green-500" onClick={() => onSendWhatsApp(appt)} title="إرسال واتساب">
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      {appt.whatsappSent && <Check className="w-3.5 h-3.5 text-green-500 mx-0.5" />}
+                      {appt.status === 'pending' && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-500" onClick={async () => { await updateAppointmentAPI(appt.id, { status: 'confirmed' }); onRefresh() }} title="تأكيد">
+                          <CalendarCheck className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      {appt.status === 'confirmed' && isPast && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500" onClick={async () => { await updateAppointmentAPI(appt.id, { status: 'completed' }); onRefresh() }} title="تم الكشف">
+                          <UserCheck className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(appt)} title="تعديل">
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => onDelete(appt.id)} title="حذف">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Quick Stats Bottom */}
+      {stats && (
+        <Card className="bg-gradient-to-l from-cyan-50 to-blue-50 border-cyan-200">
+          <CardContent className="p-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center">
+                <p className="text-lg font-bold text-cyan-600">{stats.summary?.upcoming || 0}</p>
+                <p className="text-[10px] text-muted-foreground">قادمة</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold text-amber-600">{stats.summary?.noShowRate || 0}%</p>
+                <p className="text-[10px] text-muted-foreground">نسبة عدم الحضور</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold text-emerald-600">{stats.summary?.completionRate || 0}%</p>
+                <p className="text-[10px] text-muted-foreground">نسبة الإنجاز</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════
 // MORE TAB
 // ═══════════════════════════════════════════════════════════════
 function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts, alertsLoading, onAddService, onEditService, onDeleteService, onAddAlert, onMarkAlertRead, onDeleteAlert, onRefreshServices, onRefreshAlerts, selectedTheme, onThemeChange, syncConnected, syncConnectionInfo, syncLastTime, backups, backupLoading, onCreateBackup, onImportBackup, onRestoreBackup, onDeleteBackup, transactions, financeSummary, financeLoading, onAddTransaction, onEditTransaction, onDeleteTransaction, onRefreshFinance, reportSubTab, onReportSubTabChange, dailyReport, weeklyReport, monthlyReport, reportsLoading, clinicServices, onRefreshReports, darkMode, onDarkModeToggle, lastAutoSave }: any) {
   const moreMenuItems = [
+    { id: 'booking', label: 'سيستم الحجز', icon: <CalendarPlus className="w-5 h-5" />, color: 'from-cyan-500 to-blue-600', bgLight: 'bg-cyan-50', textColor: 'text-cyan-600', desc: 'حجز المواعيد وإدارتها', badge: appointmentStats?.summary?.today || 0 },
     { id: 'services', label: 'الخدمات', icon: <Syringe className="w-5 h-5" />, color: 'from-blue-500 to-indigo-600', bgLight: 'bg-blue-50', textColor: 'text-blue-600', desc: 'إدارة خدمات العيادة والأسعار' },
     { id: 'alerts', label: 'التنبيهات', icon: <Bell className="w-5 h-5" />, color: 'from-amber-500 to-orange-600', bgLight: 'bg-amber-50', textColor: 'text-amber-600', desc: 'المتابعة والتذكيرات', badge: alerts?.filter((a: any) => !a.isRead).length > 0 ? alerts.filter((a: any) => !a.isRead).length : 0 },
     { id: 'finance', label: 'المالية', icon: <Wallet className="w-5 h-5" />, color: 'from-emerald-500 to-green-600', bgLight: 'bg-emerald-50', textColor: 'text-emerald-600', desc: 'إيرادات ومصروفات العيادة' },
@@ -4664,7 +5163,7 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
 
   return (
     <div className="space-y-4">
-      {moreSubTab === 'list' || !['services','alerts','finance','reports','settings'].includes(moreSubTab) ? (
+      {moreSubTab === 'list' || !['booking','services','alerts','finance','reports','settings'].includes(moreSubTab) ? (
         <>
           {/* Section Header */}
           <div className="flex items-center gap-3 mb-2">
@@ -4714,6 +5213,24 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
             <ChevronRight className="w-4 h-4" />
             <span>رجوع للمزيد</span>
           </button>
+
+          {/* Booking System */}
+          {moreSubTab === 'booking' && (
+            <BookingSection
+              appointments={appointments}
+              loading={appointmentsLoading}
+              stats={appointmentStats}
+              statsLoading={appointmentStatsLoading}
+              patients={clinic.patients}
+              onAdd={() => { setAppointmentForm({ patientId: '', appointmentDate: selectedAppointmentDate, time: '13:00', duration: '20', type: 'new_visit', status: 'pending', paymentMethod: '', amount: '', notes: '' }); fetchAvailableSlots(selectedAppointmentDate); setAddAppointmentOpen(true) }}
+              onEdit={openEditAppointment}
+              onDelete={(id) => confirmDelete('appointment', id)}
+              onSendWhatsApp={handleSendAppointmentWhatsApp}
+              onRefresh={() => { fetchAppointments({ date: selectedAppointmentDate }); fetchAppointmentStats() }}
+              selectedDate={selectedAppointmentDate}
+              onDateChange={(d) => { setSelectedAppointmentDate(d); fetchAppointments({ date: d }); fetchAvailableSlots(d) }}
+            />
+          )}
 
           {/* Services */}
           {moreSubTab === 'services' && (

@@ -338,6 +338,41 @@ export function deleteLaserNoteAPI(id: string) {
   return fetchAPI<{ success: boolean }>(`/laser/notes/${id}`, { method: 'DELETE' });
 }
 
+// ─── Appointments ────────────────────────────────────────
+export function getAppointmentsAPI(params?: { date?: string; dateFrom?: string; dateTo?: string; status?: string; type?: string; patientId?: string }) {
+  return fetchAPI<{ appointments: any[]; total: number }>(`/appointments${buildQuery(params as any)}`);
+}
+
+export function getAppointmentAPI(id: string) {
+  return fetchAPI<{ appointment: any }>(`/appointments/${id}`);
+}
+
+export function createAppointmentAPI(data: any) {
+  return fetchAPI<{ appointment: any }>('/appointments', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateAppointmentAPI(id: string, data: any) {
+  return fetchAPI<{ appointment: any }>(`/appointments/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteAppointmentAPI(id: string) {
+  return fetchAPI<{ success: boolean }>(`/appointments/${id}`, { method: 'DELETE' });
+}
+
+export function getAppointmentStatsAPI(params?: { dateFrom?: string; dateTo?: string }) {
+  return fetchAPI<any>(`/appointments/stats${buildQuery(params as any)}`);
+}
+
+export function getAvailableSlotsAPI(date: string, duration?: number) {
+  return fetchAPI<{ slots: any[] }>(`/appointments/slots${buildQuery({ date, duration })}`);
+}
+
 // ─── Finance ───────────────────────────────────────────────────
 export function getTransactionsAPI(params?: { type?: string; category?: string; dateFrom?: string; dateTo?: string }) {
   return fetchAPI<{ transactions: any[]; total: number }>(`/finance${buildQuery(params as any)}`);
