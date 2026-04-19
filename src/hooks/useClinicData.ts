@@ -13,6 +13,11 @@ import {
   getDailyReportAPI,
   getWeeklyReportAPI,
   getMonthlyReportAPI,
+  getLaserRecordsAPI,
+  getLaserPackagesAPI,
+  getTransactionsAPI,
+  getFinanceSummaryAPI,
+  getWaitingQueueAPI,
   type PatientFilters,
   type VisitFilters,
   type SessionFilters,
@@ -50,6 +55,20 @@ interface ClinicDataState {
   weeklyReport: any | null;
   monthlyReport: any | null;
   reportsLoading: boolean;
+  // Laser
+  laserRecords: any[];
+  laserRecordsTotal: number;
+  laserRecordsLoading: boolean;
+  laserPackages: any[];
+  laserPackagesLoading: boolean;
+  // Finance
+  transactions: any[];
+  transactionsTotal: number;
+  transactionsLoading: boolean;
+  financeSummary: any | null;
+  // Waiting Queue
+  waitingQueue: any[];
+  waitingQueueLoading: boolean;
 }
 
 export function useClinicData() {
@@ -81,6 +100,17 @@ export function useClinicData() {
     weeklyReport: null,
     monthlyReport: null,
     reportsLoading: false,
+    laserRecords: [],
+    laserRecordsTotal: 0,
+    laserRecordsLoading: false,
+    laserPackages: [],
+    laserPackagesLoading: false,
+    transactions: [],
+    transactionsTotal: 0,
+    transactionsLoading: false,
+    financeSummary: null,
+    waitingQueue: [],
+    waitingQueueLoading: false,
   });
 
   const update = useCallback((partial: Partial<ClinicDataState>) => {
@@ -199,34 +229,75 @@ export function useClinicData() {
     }
   }, [update]);
 
+  // ─── Laser ──────────────────────────────────────────────────
+  const fetchLaserRecords = useCallback(async (params?: { patientId?: string; status?: string; bodyArea?: string }) => {
+    update({ laserRecordsLoading: true });
+    try {
+      const data = await getLaserRecordsAPI(params);
+      update({ laserRecords: data.records, laserRecordsTotal: data.total, laserRecordsLoading: false });
+    } catch {
+      update({ laserRecordsLoading: false });
+    }
+  }, [update]);
+
+  const fetchLaserPackages = useCallback(async () => {
+    update({ laserPackagesLoading: true });
+    try {
+      const data = await getLaserPackagesAPI();
+      update({ laserPackages: data.packages, laserPackagesLoading: false });
+    } catch {
+      update({ laserPackagesLoading: false });
+    }
+  }, [update]);
+
+  // ─── Finance ────────────────────────────────────────────────
+  const fetchTransactions = useCallback(async (params?: { type?: string; category?: string; dateFrom?: string; dateTo?: string }) => {
+    update({ transactionsLoading: true });
+    try {
+      const data = await getTransactionsAPI(params);
+      update({ transactions: data.transactions, transactionsTotal: data.total, transactionsLoading: false });
+    } catch {
+      update({ transactionsLoading: false });
+    }
+  }, [update]);
+
+  const fetchFinanceSummary = useCallback(async (params?: { dateFrom?: string; dateTo?: string }) => {
+    try {
+      const data = await getFinanceSummaryAPI(params);
+      update({ financeSummary: data });
+    } catch {
+      // silent
+    }
+  }, [update]);
+
+  // ─── Waiting Queue ──────────────────────────────────────────
+  const fetchWaitingQueue = useCallback(async (params?: { status?: string; date?: string }) => {
+    update({ waitingQueueLoading: true });
+    try {
+      const data = await getWaitingQueueAPI(params);
+      update({ waitingQueue: data.queue, waitingQueueLoading: false });
+    } catch {
+      update({ waitingQueueLoading: false });
+    }
+  }, [update]);
+
   // ─── Listen to sync events for auto-refresh ────────────────
   useEffect(() => {
     const unsubs: (() => void)[] = [];
 
-    // Patient events
     unsubs.push(on('patient:created', () => { fetchPatients(); fetchDashboard(); }));
     unsubs.push(on('patient:updated', () => { fetchPatients(); fetchDashboard(); }));
     unsubs.push(on('patient:deleted', () => { fetchPatients(); fetchDashboard(); }));
-
-    // Visit events
     unsubs.push(on('visit:created', () => { fetchVisits(); fetchDashboard(); }));
     unsubs.push(on('visit:updated', () => { fetchVisits(); fetchDashboard(); }));
     unsubs.push(on('visit:deleted', () => { fetchVisits(); fetchDashboard(); }));
-
-    // Session events
     unsubs.push(on('session:created', () => { fetchSessions(); fetchDashboard(); }));
     unsubs.push(on('session:updated', () => { fetchSessions(); fetchDashboard(); }));
     unsubs.push(on('session:deleted', () => { fetchSessions(); fetchDashboard(); }));
-
-    // Alert events
     unsubs.push(on('alert:new', () => { fetchAlerts(); fetchDashboard(); }));
     unsubs.push(on('alert:updated', () => { fetchAlerts(); fetchDashboard(); }));
     unsubs.push(on('alert:deleted', () => { fetchAlerts(); fetchDashboard(); }));
-
-    // Note events
     unsubs.push(on('note:new', () => { fetchNotes(); }));
-
-    // Service events
     unsubs.push(on('service:created', () => { fetchServices(); }));
     unsubs.push(on('service:updated', () => { fetchServices(); }));
     unsubs.push(on('service:deleted', () => { fetchServices(); }));
@@ -239,7 +310,6 @@ export function useClinicData() {
   // ─── Polling fallback when WebSocket is disconnected ───────
   useEffect(() => {
     if (connected) {
-      // Stop polling when WebSocket is connected
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -247,15 +317,12 @@ export function useClinicData() {
       return;
     }
 
-    // Poll every 5 seconds when disconnected (as fallback)
     pollingIntervalRef.current = setInterval(async () => {
-      // Avoid excessive polling
       const now = Date.now();
       if (now - lastPollRef.current < 5000) return;
       lastPollRef.current = now;
 
       try {
-        // Silently refresh dashboard and alerts
         const [dashData, alertsData] = await Promise.allSettled([
           getDashboardAPI(),
           getAlertsAPI({ isRead: false }),
@@ -267,7 +334,7 @@ export function useClinicData() {
           update({ alerts: alertsData.value.alerts });
         }
       } catch {
-        // Silent fail - polling is a fallback
+        // Silent fail
       }
     }, 5000);
 
@@ -295,5 +362,10 @@ export function useClinicData() {
     fetchDailyReport,
     fetchWeeklyReport,
     fetchMonthlyReport,
+    fetchLaserRecords,
+    fetchLaserPackages,
+    fetchTransactions,
+    fetchFinanceSummary,
+    fetchWaitingQueue,
   };
 }

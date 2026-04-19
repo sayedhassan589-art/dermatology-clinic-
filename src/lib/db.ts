@@ -12,6 +12,7 @@ function createPrismaClient() {
     console.log('[DB] Using remote Turso database')
     try {
       // Dynamic import for Turso adapter (only when remote URL is configured)
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { PrismaLibSQL } = require('@prisma/adapter-libsql')
       const adapter = new PrismaLibSQL({ url: dbUrl })
       return new PrismaClient({ adapter })

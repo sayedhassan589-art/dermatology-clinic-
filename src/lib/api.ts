@@ -225,3 +225,114 @@ export function getWeeklyReportAPI() {
 export function getMonthlyReportAPI() {
   return fetchAPI<any>('/reports/monthly');
 }
+
+// ─── Laser ─────────────────────────────────────────────────────
+export function getLaserRecordsAPI(params?: { patientId?: string; status?: string; bodyArea?: string }) {
+  return fetchAPI<{ records: any[]; total: number }>(`/laser${buildQuery(params as any)}`);
+}
+
+export function getLaserRecordAPI(id: string) {
+  return fetchAPI<{ record: any }>(`/laser/${id}`);
+}
+
+export function createLaserRecordAPI(data: any) {
+  return fetchAPI<{ record: any }>('/laser', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateLaserRecordAPI(id: string, data: any) {
+  return fetchAPI<{ record: any }>(`/laser/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteLaserRecordAPI(id: string) {
+  return fetchAPI<{ success: boolean }>(`/laser/${id}`, { method: 'DELETE' });
+}
+
+export function getLaserPackagesAPI() {
+  return fetchAPI<{ packages: any[] }>('/laser/packages');
+}
+
+export function createLaserPackageAPI(data: any) {
+  return fetchAPI<{ package: any }>('/laser/packages', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateLaserPackageAPI(id: string, data: any) {
+  return fetchAPI<{ package: any }>(`/laser/packages/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteLaserPackageAPI(id: string) {
+  return fetchAPI<{ success: boolean }>(`/laser/packages/${id}`, { method: 'DELETE' });
+}
+
+// ─── Finance ───────────────────────────────────────────────────
+export function getTransactionsAPI(params?: { type?: string; category?: string; dateFrom?: string; dateTo?: string }) {
+  return fetchAPI<{ transactions: any[]; total: number }>(`/finance${buildQuery(params as any)}`);
+}
+
+export function createTransactionAPI(data: any) {
+  return fetchAPI<{ transaction: any }>('/finance', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateTransactionAPI(id: string, data: any) {
+  return fetchAPI<{ transaction: any }>(`/finance/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteTransactionAPI(id: string) {
+  return fetchAPI<{ success: boolean }>(`/finance/${id}`, { method: 'DELETE' });
+}
+
+export function getFinanceSummaryAPI(params?: { dateFrom?: string; dateTo?: string }) {
+  return fetchAPI<any>(`/finance/summary${buildQuery(params as any)}`);
+}
+
+// ─── Waiting Queue ─────────────────────────────────────────────
+export function getWaitingQueueAPI(params?: { status?: string; date?: string }) {
+  return fetchAPI<{ queue: any[] }>(`/waiting${buildQuery(params as any)}`);
+}
+
+export function addToWaitingQueueAPI(data: any) {
+  return fetchAPI<{ queueItem: any }>('/waiting', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateWaitingQueueAPI(id: string, data: any) {
+  return fetchAPI<{ queueItem: any }>(`/waiting/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteWaitingQueueAPI(id: string) {
+  return fetchAPI<{ success: boolean }>(`/waiting/${id}`, { method: 'DELETE' });
+}
+
+// ─── WhatsApp ──────────────────────────────────────────────────
+export function sendWhatsAppAPI(data: { patientId: string; message?: string; type?: string }) {
+  return fetchAPI<{ url: string; phone: string; templates: any[] }>('/whatsapp', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function getWhatsAppTemplatesAPI() {
+  return fetchAPI<{ templates: any[] }>('/whatsapp');
+}

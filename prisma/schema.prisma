@@ -22,25 +22,27 @@ model User {
 }
 
 model Patient {
-  id            String    @id @default(cuid())
+  id            String        @id @default(cuid())
   name          String
   phone         String?
   age           Int?
   gender        String?
   address       String?
   nationalId    String?
-  fileNumber    String?   @unique
+  fileNumber    String?       @unique
   diagnosis     String?
   notes         String?
-  status        String    @default("active")
+  status        String        @default("active")
   createdBy     String
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  creator       User      @relation("CreatedBy", fields: [createdBy], references: [id])
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  creator       User          @relation("CreatedBy", fields: [createdBy], references: [id])
   visits        Visit[]
   sessions      Session[]
   alerts        Alert[]
-  patientNotes  Note[]    @relation("PatientNotes")
+  patientNotes  Note[]        @relation("PatientNotes")
+  laserRecords  LaserRecord[]
+  waitingRecords WaitingQueue[]
 }
 
 model Service {
@@ -103,7 +105,7 @@ model Note {
   content     String
   isImportant Boolean  @default(false)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt   DateTime @updatedAt
 }
 
 model Backup {
@@ -125,5 +127,67 @@ model Alert {
   isRead      Boolean  @default(false)
   alertType   String   @default("reminder")
   createdAt   DateTime @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt   DateTime @updatedAt
+}
+
+model LaserRecord {
+  id              String        @id @default(cuid())
+  patientId       String
+  patient         Patient       @relation(fields: [patientId], references: [id])
+  packageId       String?
+  package         LaserPackage? @relation(fields: [packageId], references: [id])
+  bodyArea        String
+  sessionNumber   Int           @default(1)
+  totalSessions   Int
+  sessionDate     DateTime
+  nextSessionDate DateTime?
+  status          String        @default("active")
+  notes           String?
+  price           Float?
+  paidAmount      Float         @default(0)
+  createdBy       String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model LaserPackage {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  bodyArea    String
+  sessions    Int
+  price       Float
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  records     LaserRecord[]
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  type        String
+  category    String
+  amount      Float
+  description String
+  referenceId String?
+  date        DateTime @default(now())
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WaitingQueue {
+  id          String   @id @default(cuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  reason      String?
+  status      String   @default("waiting")
+  priority    Int      @default(0)
+  arrivedAt   DateTime @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  notes       String?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

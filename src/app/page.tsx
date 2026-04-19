@@ -21,6 +21,24 @@ import {
   createAlertAPI,
   updateAlertAPI,
   deleteAlertAPI,
+  getLaserRecordsAPI,
+  createLaserRecordAPI,
+  updateLaserRecordAPI,
+  deleteLaserRecordAPI,
+  getLaserPackagesAPI,
+  createLaserPackageAPI,
+  updateLaserPackageAPI,
+  deleteLaserPackageAPI,
+  getTransactionsAPI,
+  createTransactionAPI,
+  updateTransactionAPI,
+  deleteTransactionAPI,
+  getFinanceSummaryAPI,
+  getWaitingQueueAPI,
+  addToWaitingQueueAPI,
+  updateWaitingQueueAPI,
+  deleteWaitingQueueAPI,
+  sendWhatsAppAPI,
 } from '@/lib/api'
 import { toast } from 'sonner'
 
@@ -105,6 +123,15 @@ import {
   Building2,
   ClipboardList,
   Syringe,
+  Zap,
+  Wallet,
+  MessageCircle,
+  Calendar,
+  Moon,
+  Sun,
+  Timer,
+  UserX,
+  Save,
   Baby,
   UserCheck,
   Circle,
@@ -212,11 +239,11 @@ function removeThemeCSS() {
 }
 
 // ─── Type definitions ──────────────────────────────────────────
-type MainTab = 'dashboard' | 'patients' | 'visits' | 'sessions' | 'reports' | 'more'
+type MainTab = 'dashboard' | 'patients' | 'visits' | 'sessions' | 'laser' | 'more'
 type SubView = 'list' | 'detail' | 'form'
-type PatientDetailTab = 'visits' | 'sessions' | 'notes' | 'alerts'
+type PatientDetailTab = 'visits' | 'sessions' | 'notes' | 'alerts' | 'laser'
 type ReportSubTab = 'daily' | 'weekly' | 'monthly'
-type MoreSubTab = 'services' | 'alerts' | 'settings'
+type MoreSubTab = 'services' | 'alerts' | 'finance' | 'reports' | 'calendar' | 'settings'
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP COMPONENT
@@ -269,6 +296,44 @@ export default function Home() {
   const [alertForm, setAlertForm] = useState({ patientId: '', title: '', message: '', alertDate: todayStr(), alertType: 'reminder' })
   const [serviceForm, setServiceForm] = useState({ name: '', description: '', price: '', duration: '' })
   const [editItem, setEditItem] = useState<any>(null)
+
+  // ─── Laser State ────────────────────────────────────────
+  const [laserRecords, setLaserRecords] = useState<any[]>([])
+  const [laserPackages, setLaserPackages] = useState<any[]>([])
+  const [laserLoading, setLaserLoading] = useState(false)
+  const [addLaserOpen, setAddLaserOpen] = useState(false)
+  const [editLaserOpen, setEditLaserOpen] = useState(false)
+  const [addPackageOpen, setAddPackageOpen] = useState(false)
+  const [editPackageOpen, setEditPackageOpen] = useState(false)
+  const [laserForm, setLaserForm] = useState({ patientId: '', bodyArea: '', totalSessions: '8', sessionDate: todayStr(), nextSessionDate: '', status: 'active', packageId: '', price: '', paidAmount: '', notes: '' })
+  const [packageForm, setPackageForm] = useState({ name: '', description: '', bodyArea: '', sessions: '8', price: '' })
+
+  // ─── Finance State ──────────────────────────────────────
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [financeSummary, setFinanceSummary] = useState<any>(null)
+  const [financeLoading, setFinanceLoading] = useState(false)
+  const [addTransactionOpen, setAddTransactionOpen] = useState(false)
+  const [editTransactionOpen, setEditTransactionOpen] = useState(false)
+  const [transactionForm, setTransactionForm] = useState({ type: 'income', category: '', amount: '', description: '', date: todayStr() })
+
+  // ─── Waiting Queue State ────────────────────────────────
+  const [waitingQueue, setWaitingQueue] = useState<any[]>([])
+  const [waitingLoading, setWaitingLoading] = useState(false)
+  const [addWaitingOpen, setAddWaitingOpen] = useState(false)
+  const [waitingForm, setWaitingForm] = useState({ patientId: '', reason: '', priority: '0' })
+
+  // ─── Dark Mode State ────────────────────────────────────
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('derm-dark') === 'true'
+    return false
+  })
+
+  // ─── Auto-save State ────────────────────────────────────
+  const [lastAutoSave, setLastAutoSave] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('derm-last-autosave')
+    return null
+  })
+  const [calendarMonth, setCalendarMonth] = useState(new Date())
 
   // ─── Theme & Reports Password ───────────────────────────
   const [selectedTheme, setSelectedTheme] = useState(() => {
@@ -386,6 +451,37 @@ export default function Home() {
     }
   }, [selectedTheme, currentTheme])
 
+  // ─── Dark Mode ─────────────────────────────────────────
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+    localStorage.setItem('derm-dark', String(darkMode))
+  }, [darkMode])
+
+  // ─── Auto-save every 24 hours ──────────────────────────
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const checkAutoSave = async () => {
+      const lastSave = localStorage.getItem('derm-last-autosave')
+      const now = Date.now()
+      const twentyFourHours = 24 * 60 * 60 * 1000
+      if (!lastSave || (now - parseInt(lastSave)) >= twentyFourHours) {
+        try {
+          await fetch('/api/backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'auto' }) })
+          localStorage.setItem('derm-last-autosave', String(now))
+          setLastAutoSave(new Date(now).toLocaleString('ar-EG'))
+        } catch { /* silent */ }
+      }
+    }
+    checkAutoSave()
+    const interval = setInterval(checkAutoSave, 60 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [isAuthenticated])
+
   // Reports password check
   const handleReportsAccess = () => {
     if (reportsUnlocked) return
@@ -426,20 +522,73 @@ export default function Home() {
     }
   }, [isAuthenticated])
 
+  // ─── Laser data ────────────────────────────────────────
+  const fetchLaserRecords = useCallback(async (params?: any) => {
+    setLaserLoading(true)
+    try {
+      const data = await getLaserRecordsAPI(params)
+      setLaserRecords(data.records || [])
+    } catch { /* silent */ }
+    setLaserLoading(false)
+  }, [])
+
+  const fetchLaserPackages = useCallback(async () => {
+    try {
+      const data = await getLaserPackagesAPI()
+      setLaserPackages(data.packages || [])
+    } catch { /* silent */ }
+  }, [])
+
+  // ─── Finance data ──────────────────────────────────────
+  const fetchFinanceData = useCallback(async (params?: any) => {
+    setFinanceLoading(true)
+    try {
+      const [txData, summary] = await Promise.all([
+        getTransactionsAPI(params),
+        getFinanceSummaryAPI(params),
+      ])
+      setTransactions(txData.transactions || [])
+      setFinanceSummary(summary)
+    } catch { /* silent */ }
+    setFinanceLoading(false)
+  }, [])
+
+  // ─── Waiting Queue ─────────────────────────────────────
+  const fetchWaitingQueue = useCallback(async () => {
+    setWaitingLoading(true)
+    try {
+      const data = await getWaitingQueueAPI({ status: 'waiting' })
+      setWaitingQueue(data.queue || [])
+    } catch { /* silent */ }
+    setWaitingLoading(false)
+  }, [])
+
   // ─── Tab change: load data ────────────────────────────────
   useEffect(() => {
     if (!isAuthenticated) return
-    if (activeTab === 'visits') {
-      clinic.fetchVisits({ dateFrom: visitDateFilter, dateTo: visitDateFilter, visitType: visitTypeFilter || undefined })
+    if (activeTab === 'dashboard') {
+      clinic.fetchDashboard()
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void fetchWaitingQueue()
+    } else if (activeTab === 'visits') {
+      void clinic.fetchVisits({ dateFrom: visitDateFilter, dateTo: visitDateFilter, visitType: visitTypeFilter || undefined })
     } else if (activeTab === 'sessions') {
-      clinic.fetchSessions({ dateFrom: sessionDateFilter, dateTo: sessionDateFilter, status: sessionStatusFilter || undefined })
-    } else if (activeTab === 'reports') {
-      if (reportSubTab === 'daily') clinic.fetchDailyReport()
-      else if (reportSubTab === 'weekly') clinic.fetchWeeklyReport()
-      else clinic.fetchMonthlyReport()
+      void clinic.fetchSessions({ dateFrom: sessionDateFilter, dateTo: sessionDateFilter, status: sessionStatusFilter || undefined })
+    } else if (activeTab === 'laser') {
+      void fetchLaserRecords()
+      void fetchLaserPackages()
     } else if (activeTab === 'more') {
-      if (moreSubTab === 'services') clinic.fetchServices()
-      else if (moreSubTab === 'alerts') clinic.fetchAlerts()
+      if (moreSubTab === 'services') void clinic.fetchServices()
+      else if (moreSubTab === 'alerts') void clinic.fetchAlerts()
+      else if (moreSubTab === 'finance') void fetchFinanceData()
+      else if (moreSubTab === 'reports') {
+        handleReportsAccess()
+        if (reportsUnlocked) {
+          if (reportSubTab === 'daily') void clinic.fetchDailyReport()
+          else if (reportSubTab === 'weekly') void clinic.fetchWeeklyReport()
+          else void clinic.fetchMonthlyReport()
+        }
+      }
     }
   }, [activeTab, reportSubTab, moreSubTab, visitDateFilter, visitTypeFilter, sessionDateFilter, sessionStatusFilter, isAuthenticated])
 
@@ -766,6 +915,9 @@ export default function Home() {
       else if (deleteTarget.type === 'session') await deleteSessionAPI(deleteTarget.id)
       else if (deleteTarget.type === 'alert') await deleteAlertAPI(deleteTarget.id)
       else if (deleteTarget.type === 'service') await deleteServiceAPI(deleteTarget.id)
+      else if (deleteTarget.type === 'laser') await deleteLaserRecordAPI(deleteTarget.id)
+      else if (deleteTarget.type === 'package') await deleteLaserPackageAPI(deleteTarget.id)
+      else if (deleteTarget.type === 'transaction') await deleteTransactionAPI(deleteTarget.id)
       toast.success('تم الحذف بنجاح')
       clinic.fetchDashboard()
       clinic.fetchPatients()
@@ -773,6 +925,8 @@ export default function Home() {
       clinic.fetchSessions()
       clinic.fetchServices()
       clinic.fetchAlerts()
+      fetchLaserRecords()
+      fetchFinanceData()
       if (selectedPatientId) clinic.fetchPatientDetail(selectedPatientId)
     } catch (err: any) {
       toast.error(err.message || 'خطأ في الحذف')
@@ -798,6 +952,228 @@ export default function Home() {
     })
   }, [clinic.services])
 
+  // ─── Laser CRUD ─────────────────────────────────────────
+  const handleCreateLaserRecord = async () => {
+    if (!laserForm.patientId || !laserForm.bodyArea) {
+      toast.error('يرجى اختيار المريض ومنطقة الجسم')
+      return
+    }
+    try {
+      const data = {
+        ...laserForm,
+        totalSessions: parseInt(laserForm.totalSessions) || 8,
+        price: laserForm.price ? parseFloat(laserForm.price) : null,
+        paidAmount: laserForm.paidAmount ? parseFloat(laserForm.paidAmount) : 0,
+        packageId: laserForm.packageId || undefined,
+        nextSessionDate: laserForm.nextSessionDate || undefined,
+        doctorId: user?.id,
+        createdBy: user?.id,
+      }
+      await createLaserRecordAPI(data)
+      toast.success('تم إضافة سجل الليزر بنجاح')
+      setAddLaserOpen(false)
+      setLaserForm({ patientId: '', bodyArea: '', totalSessions: '8', sessionDate: todayStr(), nextSessionDate: '', status: 'active', packageId: '', price: '', paidAmount: '', notes: '' })
+      fetchLaserRecords()
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في إضافة سجل الليزر')
+    }
+  }
+
+  const handleEditLaserRecord = async () => {
+    if (!editItem) return
+    try {
+      await updateLaserRecordAPI(editItem.id, {
+        ...laserForm,
+        totalSessions: parseInt(laserForm.totalSessions) || 8,
+        price: laserForm.price ? parseFloat(laserForm.price) : null,
+        paidAmount: laserForm.paidAmount ? parseFloat(laserForm.paidAmount) : 0,
+        packageId: laserForm.packageId || undefined,
+        nextSessionDate: laserForm.nextSessionDate || undefined,
+        userId: user?.id,
+      })
+      toast.success('تم تحديث سجل الليزر')
+      setEditLaserOpen(false)
+      setEditItem(null)
+      fetchLaserRecords()
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في التحديث')
+    }
+  }
+
+  const openEditLaserRecord = (r: any) => {
+    setEditItem(r)
+    setLaserForm({
+      patientId: r.patientId || '',
+      bodyArea: r.bodyArea || '',
+      totalSessions: r.totalSessions?.toString() || '8',
+      sessionDate: r.sessionDate ? new Date(r.sessionDate).toISOString().split('T')[0] : todayStr(),
+      nextSessionDate: r.nextSessionDate ? new Date(r.nextSessionDate).toISOString().split('T')[0] : '',
+      status: r.status || 'active',
+      packageId: r.packageId || '',
+      price: r.price?.toString() || '',
+      paidAmount: r.paidAmount?.toString() || '',
+      notes: r.notes || '',
+    })
+    setEditLaserOpen(true)
+  }
+
+  const handleCreateLaserPackage = async () => {
+    if (!packageForm.name.trim()) {
+      toast.error('يرجى إدخال اسم الباقة')
+      return
+    }
+    try {
+      await createLaserPackageAPI({
+        ...packageForm,
+        sessions: parseInt(packageForm.sessions) || 8,
+        price: parseFloat(packageForm.price) || 0,
+      })
+      toast.success('تم إضافة الباقة بنجاح')
+      setAddPackageOpen(false)
+      setPackageForm({ name: '', description: '', bodyArea: '', sessions: '8', price: '' })
+      fetchLaserPackages()
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في إضافة الباقة')
+    }
+  }
+
+  const handleEditLaserPackage = async () => {
+    if (!editItem) return
+    try {
+      await updateLaserPackageAPI(editItem.id, {
+        ...packageForm,
+        sessions: parseInt(packageForm.sessions) || 8,
+        price: parseFloat(packageForm.price) || 0,
+      })
+      toast.success('تم تحديث الباقة')
+      setEditPackageOpen(false)
+      setEditItem(null)
+      fetchLaserPackages()
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في التحديث')
+    }
+  }
+
+  const openEditLaserPackage = (p: any) => {
+    setEditItem(p)
+    setPackageForm({
+      name: p.name || '',
+      description: p.description || '',
+      bodyArea: p.bodyArea || '',
+      sessions: p.sessions?.toString() || '8',
+      price: p.price?.toString() || '',
+    })
+    setEditPackageOpen(true)
+  }
+
+  // ─── Finance CRUD ───────────────────────────────────────
+  const handleCreateTransaction = async () => {
+    if (!transactionForm.amount || !transactionForm.category) {
+      toast.error('يرجى إدخال المبلغ والتصنيف')
+      return
+    }
+    try {
+      await createTransactionAPI({
+        ...transactionForm,
+        amount: parseFloat(transactionForm.amount),
+        createdBy: user?.id,
+      })
+      toast.success('تم إضافة المعاملة بنجاح')
+      setAddTransactionOpen(false)
+      setTransactionForm({ type: 'income', category: '', amount: '', description: '', date: todayStr() })
+      fetchFinanceData()
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في إضافة المعاملة')
+    }
+  }
+
+  const handleEditTransaction = async () => {
+    if (!editItem) return
+    try {
+      await updateTransactionAPI(editItem.id, {
+        ...transactionForm,
+        amount: parseFloat(transactionForm.amount),
+        userId: user?.id,
+      })
+      toast.success('تم تحديث المعاملة')
+      setEditTransactionOpen(false)
+      setEditItem(null)
+      fetchFinanceData()
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في التحديث')
+    }
+  }
+
+  const openEditTransaction = (t: any) => {
+    setEditItem(t)
+    setTransactionForm({
+      type: t.type || 'income',
+      category: t.category || '',
+      amount: t.amount?.toString() || '',
+      description: t.description || '',
+      date: t.date ? new Date(t.date).toISOString().split('T')[0] : todayStr(),
+    })
+    setEditTransactionOpen(true)
+  }
+
+  // ─── Waiting Queue CRUD ─────────────────────────────────
+  const handleAddToWaiting = async () => {
+    if (!waitingForm.patientId) {
+      toast.error('يرجى اختيار المريض')
+      return
+    }
+    try {
+      await addToWaitingQueueAPI({
+        ...waitingForm,
+        priority: parseInt(waitingForm.priority) || 0,
+        addedBy: user?.id,
+      })
+      toast.success('تم إضافة المريض للانتظار')
+      setAddWaitingOpen(false)
+      setWaitingForm({ patientId: '', reason: '', priority: '0' })
+      fetchWaitingQueue()
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في الإضافة')
+    }
+  }
+
+  const handleUpdateWaitingStatus = async (id: string, status: string) => {
+    try {
+      await updateWaitingQueueAPI(id, { status, userId: user?.id })
+      fetchWaitingQueue()
+      if (status === 'in-progress') toast.success('بدء الفحص')
+      else if (status === 'completed') toast.success('تم الانتهاء')
+      else toast.success('تم التحديث')
+    } catch {
+      toast.error('خطأ في التحديث')
+    }
+  }
+
+  // ─── WhatsApp ──────────────────────────────────────────
+  const handleWhatsApp = async (patientId: string, patientName: string, patientPhone?: string) => {
+    try {
+      const data = await sendWhatsAppAPI({
+        patientId,
+        message: `مرحباً ${patientName}، هذا تذكير بموعدكم في عيادة المغازى.`,
+        type: 'appointment',
+      })
+      if (data.url) {
+        window.open(data.url, '_blank')
+      } else if (patientPhone) {
+        const phone = patientPhone.replace(/[^0-9]/g, '')
+        const msg = encodeURIComponent(`مرحباً ${patientName}، هذا تذكير بموعدكم في عيادة المغازى.`)
+        window.open(`https://wa.me/${phone}?text=${msg}`, '_blank')
+      }
+    } catch {
+      // Fallback: open wa.me directly
+      if (patientPhone) {
+        const phone = patientPhone.replace(/[^0-9]/g, '')
+        const msg = encodeURIComponent(`مرحباً ${patientName}، هذا تذكير بموعدكم في عيادة المغازى.`)
+        window.open(`https://wa.me/${phone}?text=${msg}`, '_blank')
+      }
+    }
+  }
+
   // ─── Unread alert count ───────────────────────────────────
   const unreadCount = useMemo(() => {
     return clinic.alerts.filter(a => !a.isRead).length
@@ -818,7 +1194,7 @@ export default function Home() {
               </div>
 
               <div className="text-center space-y-2">
-                <h1 className="text-2xl font-bold text-emerald-800">عيادة الجلدية</h1>
+                <h1 className="text-2xl font-bold text-emerald-800">عيادة المغازى</h1>
                 <p className="text-sm text-emerald-600">نظام إدارة العيادة</p>
               </div>
 
@@ -896,14 +1272,16 @@ export default function Home() {
   const totalSessionPrice = patientSessions.reduce((sum: number, s: any) => sum + (Number(s.totalPrice) || 0), 0)
   const totalSessionPaid = patientSessions.reduce((sum: number, s: any) => sum + (Number(s.paidAmount) || 0), 0)
 
-  const tabs: { id: MainTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="w-5 h-5" /> },
+  const tabs: { id: MainTab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
+    { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="w-5 h-5" />, adminOnly: true },
     { id: 'patients', label: 'المرضى', icon: <Users className="w-5 h-5" /> },
     { id: 'visits', label: 'الزيارات', icon: <Stethoscope className="w-5 h-5" /> },
     { id: 'sessions', label: 'الجلسات', icon: <CalendarDays className="w-5 h-5" /> },
-    { id: 'reports', label: 'التقارير', icon: <BarChart3 className="w-5 h-5" /> },
-    { id: 'more', label: 'المزيد', icon: <MoreHorizontal className="w-5 h-5" /> },
+    { id: 'laser', label: 'الليزر', icon: <Zap className="w-5 h-5" /> },
+    { id: 'more', label: 'المزيد', icon: <MoreHorizontal className="w-5 h-5" />, adminOnly: true },
   ]
+  const isDoctor = user?.role === 'doctor'
+  const filteredTabs = tabs.filter(t => !t.adminOnly || isDoctor)
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -921,7 +1299,7 @@ export default function Home() {
               <img src="/logo.png" alt="عيادة" className="w-full h-full object-cover" />
             </div>
             <div>
-              <h1 className="text-sm font-bold text-emerald-800 leading-tight">عيادة الجلدية</h1>
+              <h1 className="text-sm font-bold text-emerald-800 leading-tight">عيادة المغازى</h1>
               <div className="flex items-center gap-1.5">
                 <span className={`w-2 h-2 rounded-full ${clinic.connected ? 'bg-emerald-500 sync-pulse' : 'bg-red-400'}`} />
                 <span className="text-[11px] text-muted-foreground">{clinic.connectionInfo || (clinic.connected ? 'متصل' : 'غير متصل')}</span>
@@ -966,7 +1344,7 @@ export default function Home() {
       <main className="flex-1 max-w-7xl mx-auto w-full pb-20 md:pb-4">
         {/* Desktop Sidebar Tabs */}
         <div className="hidden md:flex h-12 border-b border-border bg-white px-4 items-center gap-1">
-          {tabs.map(tab => (
+          {filteredTabs.map(tab => (
             <Button
               key={tab.id}
               variant={activeTab === tab.id ? 'default' : 'ghost'}
@@ -986,6 +1364,8 @@ export default function Home() {
           {activeTab === 'dashboard' && activeSubView === 'list' && (
             <DashboardTab
               clinic={clinic}
+              waitingQueue={waitingQueue}
+              waitingLoading={waitingLoading}
               onGoToPatients={() => { setActiveTab('patients'); setActiveSubView('list') }}
               onGoToVisits={() => { setActiveTab('visits'); setActiveSubView('list') }}
               onGoToSessions={() => { setActiveTab('sessions'); setActiveSubView('list') }}
@@ -993,7 +1373,10 @@ export default function Home() {
               onAddVisit={() => setAddVisitOpen(true)}
               onAddSession={() => setAddSessionOpen(true)}
               onAlertClick={(id) => handleMarkAlertRead(id)}
-              onRefresh={() => { clinic.fetchDashboard(); clinic.fetchAlerts() }}
+              onRefresh={() => { clinic.fetchDashboard(); clinic.fetchAlerts(); fetchWaitingQueue() }}
+              onAddWaiting={() => setAddWaitingOpen(true)}
+              onUpdateWaiting={handleUpdateWaitingStatus}
+              onDeleteWaiting={(id) => { deleteWaitingQueueAPI(id).then(() => fetchWaitingQueue()).catch(() => toast.error('خطأ في الحذف')) }}
             />
           )}
 
@@ -1035,6 +1418,8 @@ export default function Home() {
               onDelete={(type, id) => confirmDelete(type, id)}
               onMarkAlertRead={handleMarkAlertRead}
               services={clinic.services}
+              laserRecords={selectedPatient?.laserRecords || []}
+              onWhatsApp={(id, name, phone) => handleWhatsApp(id, name, phone)}
             />
           )}
 
@@ -1070,37 +1455,24 @@ export default function Home() {
             />
           )}
 
-          {/* ─── REPORTS ─────────────────────────────────── */}
-          {activeTab === 'reports' && (
-            reportsUnlocked ? (
-              <ReportsTab
-                reportSubTab={reportSubTab}
-                onSubTabChange={setReportSubTab}
-                dailyReport={clinic.dailyReport}
-                weeklyReport={clinic.weeklyReport}
-                monthlyReport={clinic.monthlyReport}
-                loading={clinic.reportsLoading}
-                services={clinic.services}
-                onRefresh={() => {
-                  if (reportSubTab === 'daily') clinic.fetchDailyReport()
-                  else if (reportSubTab === 'weekly') clinic.fetchWeeklyReport()
-                  else clinic.fetchMonthlyReport()
-                }}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className={`w-20 h-20 bg-gradient-to-br ${currentTheme.primary} rounded-2xl flex items-center justify-center shadow-lg mb-4`}>
-                  <Lock className="w-10 h-10 text-white" />
-                </div>
-                <h2 className="text-xl font-bold mb-2">التقارير محمية</h2>
-                <p className="text-sm text-muted-foreground mb-4">أدخل كلمة السر للوصول للتقارير</p>
-                <Button className={`${currentTheme.btn} text-white`} onClick={() => setReportsPasswordOpen(true)}>
-                  <Lock className="w-4 h-4 ml-2" />
-                  إدخال كلمة السر
-                </Button>
-              </div>
-            )
+          {/* ─── LASER ──────────────────────────────────── */}
+          {activeTab === 'laser' && (
+            <LaserSection
+              records={laserRecords}
+              packages={laserPackages}
+              loading={laserLoading}
+              patients={clinic.patients}
+              onAddRecord={() => { setLaserForm({ patientId: '', bodyArea: '', totalSessions: '8', sessionDate: todayStr(), nextSessionDate: '', status: 'active', packageId: '', price: '', paidAmount: '', notes: '' }); setAddLaserOpen(true) }}
+              onEditRecord={openEditLaserRecord}
+              onDeleteRecord={(id) => confirmDelete('laser', id)}
+              onAddPackage={() => { setPackageForm({ name: '', description: '', bodyArea: '', sessions: '8', price: '' }); setAddPackageOpen(true) }}
+              onEditPackage={openEditLaserPackage}
+              onDeletePackage={(id) => confirmDelete('package', id)}
+              onRefresh={() => { fetchLaserRecords(); fetchLaserPackages() }}
+            />
           )}
+
+          {/* ─── REPORTS (moved inside MORE) ────────────── */}
 
           {/* ─── MORE ────────────────────────────────────── */}
           {activeTab === 'more' && (
@@ -1130,6 +1502,38 @@ export default function Home() {
               onImportBackup={handleImportBackup}
               onRestoreBackup={handleRestoreBackup}
               onDeleteBackup={handleDeleteBackup}
+              // Finance props
+              transactions={transactions}
+              financeSummary={financeSummary}
+              financeLoading={financeLoading}
+              onAddTransaction={() => { setTransactionForm({ type: 'income', category: '', amount: '', description: '', date: todayStr() }); setAddTransactionOpen(true) }}
+              onEditTransaction={openEditTransaction}
+              onDeleteTransaction={(id) => confirmDelete('transaction', id)}
+              onRefreshFinance={() => fetchFinanceData()}
+              // Reports props
+              reportSubTab={reportSubTab}
+              onReportSubTabChange={setReportSubTab}
+              dailyReport={clinic.dailyReport}
+              weeklyReport={clinic.weeklyReport}
+              monthlyReport={clinic.monthlyReport}
+              reportsLoading={clinic.reportsLoading}
+              reportsUnlocked={reportsUnlocked}
+              onReportsPasswordOpen={() => setReportsPasswordOpen(true)}
+              clinicServices={clinic.services}
+              onRefreshReports={() => {
+                if (reportSubTab === 'daily') clinic.fetchDailyReport()
+                else if (reportSubTab === 'weekly') clinic.fetchWeeklyReport()
+                else clinic.fetchMonthlyReport()
+              }}
+              // Calendar props
+              calendarMonth={calendarMonth}
+              onCalendarMonthChange={setCalendarMonth}
+              clinicVisits={clinic.visits}
+              clinicSessions={clinic.sessions}
+              // Settings props
+              darkMode={darkMode}
+              onDarkModeToggle={() => setDarkMode(prev => !prev)}
+              lastAutoSave={lastAutoSave}
             />
           )}
         </div>
@@ -1138,7 +1542,7 @@ export default function Home() {
       {/* ─── MOBILE BOTTOM NAVIGATION ──────────────────── */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-border z-50 pb-safe">
         <div className="flex items-center justify-around h-16">
-          {tabs.map(tab => (
+          {filteredTabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id); setActiveSubView('list') }}
@@ -1760,6 +2164,377 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ─── ADD LASER RECORD DIALOG ────────────────── */}
+      <Dialog open={addLaserOpen} onOpenChange={setAddLaserOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-amber-500" />
+              إضافة سجل ليزر جديد
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>المريض *</Label>
+              <PatientSearchSelect patients={clinic.patients} value={laserForm.patientId} onChange={v => setLaserForm(p => ({ ...p, patientId: v }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>منطقة الجسم *</Label>
+                <Select value={laserForm.bodyArea} onValueChange={v => setLaserForm(p => ({ ...p, bodyArea: v }))}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>
+                    {['الوجه', 'الرقبة', 'الإبطين', 'الذراعين', 'الصدر', 'البطن', 'الظهر', 'البيكيني', 'الساقين', 'الشارب', 'الذقن'].map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>عدد الجلسات</Label>
+                <Input type="number" value={laserForm.totalSessions} onChange={e => setLaserForm(p => ({ ...p, totalSessions: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>تاريخ الجلسة</Label>
+                <Input type="date" value={laserForm.sessionDate} onChange={e => setLaserForm(p => ({ ...p, sessionDate: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>تاريخ الجلسة التالية</Label>
+                <Input type="date" value={laserForm.nextSessionDate} onChange={e => setLaserForm(p => ({ ...p, nextSessionDate: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>الحالة</Label>
+              <Select value={laserForm.status} onValueChange={v => setLaserForm(p => ({ ...p, status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">نشط</SelectItem>
+                  <SelectItem value="completed">مكتمل</SelectItem>
+                  <SelectItem value="paused">متوقف</SelectItem>
+                  <SelectItem value="cancelled">ملغي</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {laserPackages.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>الباقة</Label>
+                <Select value={laserForm.packageId} onValueChange={v => setLaserForm(p => ({ ...p, packageId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="بدون باقة" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">بدون باقة</SelectItem>
+                    {laserPackages.map(pkg => <SelectItem key={pkg.id} value={pkg.id}>{pkg.name} - {formatCurrency(pkg.price)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>السعر</Label>
+                <Input type="number" value={laserForm.price} onChange={e => setLaserForm(p => ({ ...p, price: e.target.value }))} placeholder="0" dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>المدفوع</Label>
+                <Input type="number" value={laserForm.paidAmount} onChange={e => setLaserForm(p => ({ ...p, paidAmount: e.target.value }))} placeholder="0" dir="ltr" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>ملاحظات</Label>
+              <Textarea value={laserForm.notes} onChange={e => setLaserForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setAddLaserOpen(false)}>إلغاء</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreateLaserRecord}>إضافة</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── EDIT LASER RECORD DIALOG ───────────────── */}
+      <Dialog open={editLaserOpen} onOpenChange={setEditLaserOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit3 className="w-5 h-5 text-amber-500" />
+              تعديل سجل الليزر
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>منطقة الجسم</Label>
+                <Select value={laserForm.bodyArea} onValueChange={v => setLaserForm(p => ({ ...p, bodyArea: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {['الوجه', 'الرقبة', 'الإبطين', 'الذراعين', 'الصدر', 'البطن', 'الظهر', 'البيكيني', 'الساقين', 'الشارب', 'الذقن'].map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>عدد الجلسات</Label>
+                <Input type="number" value={laserForm.totalSessions} onChange={e => setLaserForm(p => ({ ...p, totalSessions: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>تاريخ الجلسة</Label>
+                <Input type="date" value={laserForm.sessionDate} onChange={e => setLaserForm(p => ({ ...p, sessionDate: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>الجلسة التالية</Label>
+                <Input type="date" value={laserForm.nextSessionDate} onChange={e => setLaserForm(p => ({ ...p, nextSessionDate: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>الحالة</Label>
+              <Select value={laserForm.status} onValueChange={v => setLaserForm(p => ({ ...p, status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">نشط</SelectItem>
+                  <SelectItem value="completed">مكتمل</SelectItem>
+                  <SelectItem value="paused">متوقف</SelectItem>
+                  <SelectItem value="cancelled">ملغي</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>السعر</Label>
+                <Input type="number" value={laserForm.price} onChange={e => setLaserForm(p => ({ ...p, price: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>المدفوع</Label>
+                <Input type="number" value={laserForm.paidAmount} onChange={e => setLaserForm(p => ({ ...p, paidAmount: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>ملاحظات</Label>
+              <Textarea value={laserForm.notes} onChange={e => setLaserForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setEditLaserOpen(false)}>إلغاء</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleEditLaserRecord}>حفظ</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── ADD LASER PACKAGE DIALOG ───────────────── */}
+      <Dialog open={addPackageOpen} onOpenChange={setAddPackageOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>إضافة باقة ليزر جديدة</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>اسم الباقة *</Label>
+              <Input value={packageForm.name} onChange={e => setPackageForm(p => ({ ...p, name: e.target.value }))} placeholder="مثال: باقة الوجه الكاملة" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>الوصف</Label>
+              <Textarea value={packageForm.description} onChange={e => setPackageForm(p => ({ ...p, description: e.target.value }))} rows={2} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>منطقة الجسم</Label>
+              <Select value={packageForm.bodyArea} onValueChange={v => setPackageForm(p => ({ ...p, bodyArea: v }))}>
+                <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                <SelectContent>
+                  {['الوجه', 'الرقبة', 'الإبطين', 'الذراعين', 'الصدر', 'البطن', 'الظهر', 'البيكيني', 'الساقين', 'الشارب', 'الذقن'].map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>عدد الجلسات</Label>
+                <Input type="number" value={packageForm.sessions} onChange={e => setPackageForm(p => ({ ...p, sessions: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>السعر (جنيه)</Label>
+                <Input type="number" value={packageForm.price} onChange={e => setPackageForm(p => ({ ...p, price: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setAddPackageOpen(false)}>إلغاء</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreateLaserPackage}>إضافة</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── EDIT LASER PACKAGE DIALOG ──────────────── */}
+      <Dialog open={editPackageOpen} onOpenChange={setEditPackageOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>تعديل باقة الليزر</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>اسم الباقة *</Label>
+              <Input value={packageForm.name} onChange={e => setPackageForm(p => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>الوصف</Label>
+              <Textarea value={packageForm.description} onChange={e => setPackageForm(p => ({ ...p, description: e.target.value }))} rows={2} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>عدد الجلسات</Label>
+                <Input type="number" value={packageForm.sessions} onChange={e => setPackageForm(p => ({ ...p, sessions: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>السعر (جنيه)</Label>
+                <Input type="number" value={packageForm.price} onChange={e => setPackageForm(p => ({ ...p, price: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setEditPackageOpen(false)}>إلغاء</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleEditLaserPackage}>حفظ</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── ADD TRANSACTION DIALOG ─────────────────── */}
+      <Dialog open={addTransactionOpen} onOpenChange={setAddTransactionOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-emerald-600" />
+              إضافة معاملة مالية
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>النوع</Label>
+              <Select value={transactionForm.type} onValueChange={v => setTransactionForm(p => ({ ...p, type: v, category: '' }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="income">إيراد</SelectItem>
+                  <SelectItem value="expense">مصروف</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>التصنيف *</Label>
+              <Select value={transactionForm.category} onValueChange={v => setTransactionForm(p => ({ ...p, category: v }))}>
+                <SelectTrigger><SelectValue placeholder="اختر التصنيف" /></SelectTrigger>
+                <SelectContent>
+                  {transactionForm.type === 'income'
+                    ? ['كشف', 'جلسة', 'ليزر', 'أخرى'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)
+                    : ['إيجار', 'مستلزمات', 'رواتب', 'صيانة', 'أخرى'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)
+                  }
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>المبلغ *</Label>
+                <Input type="number" value={transactionForm.amount} onChange={e => setTransactionForm(p => ({ ...p, amount: e.target.value }))} placeholder="0" dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>التاريخ</Label>
+                <Input type="date" value={transactionForm.date} onChange={e => setTransactionForm(p => ({ ...p, date: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>الوصف</Label>
+              <Textarea value={transactionForm.description} onChange={e => setTransactionForm(p => ({ ...p, description: e.target.value }))} rows={2} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setAddTransactionOpen(false)}>إلغاء</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreateTransaction}>إضافة</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── EDIT TRANSACTION DIALOG ────────────────── */}
+      <Dialog open={editTransactionOpen} onOpenChange={setEditTransactionOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>تعديل المعاملة</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>النوع</Label>
+              <Select value={transactionForm.type} onValueChange={v => setTransactionForm(p => ({ ...p, type: v, category: '' }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="income">إيراد</SelectItem>
+                  <SelectItem value="expense">مصروف</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>التصنيف</Label>
+              <Select value={transactionForm.category} onValueChange={v => setTransactionForm(p => ({ ...p, category: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {transactionForm.type === 'income'
+                    ? ['كشف', 'جلسة', 'ليزر', 'أخرى'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)
+                    : ['إيجار', 'مستلزمات', 'رواتب', 'صيانة', 'أخرى'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)
+                  }
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>المبلغ</Label>
+                <Input type="number" value={transactionForm.amount} onChange={e => setTransactionForm(p => ({ ...p, amount: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>التاريخ</Label>
+                <Input type="date" value={transactionForm.date} onChange={e => setTransactionForm(p => ({ ...p, date: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>الوصف</Label>
+              <Textarea value={transactionForm.description} onChange={e => setTransactionForm(p => ({ ...p, description: e.target.value }))} rows={2} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setEditTransactionOpen(false)}>إلغاء</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleEditTransaction}>حفظ</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── ADD WAITING QUEUE DIALOG ───────────────── */}
+      <Dialog open={addWaitingOpen} onOpenChange={setAddWaitingOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Timer className="w-5 h-5 text-blue-600" />
+              إضافة للانتظار
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>المريض *</Label>
+              <PatientSearchSelect patients={clinic.patients} value={waitingForm.patientId} onChange={v => setWaitingForm(p => ({ ...p, patientId: v }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>السبب</Label>
+              <Textarea value={waitingForm.reason} onChange={e => setWaitingForm(p => ({ ...p, reason: e.target.value }))} placeholder="سبب الزيارة..." rows={2} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>الأولوية</Label>
+              <Select value={waitingForm.priority} onValueChange={v => setWaitingForm(p => ({ ...p, priority: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">عادية</SelectItem>
+                  <SelectItem value="1">متوسطة</SelectItem>
+                  <SelectItem value="2">عاجلة</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setAddWaitingOpen(false)}>إلغاء</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleAddToWaiting}>إضافة</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -1824,7 +2599,7 @@ function PatientSearchSelect({ patients, value, onChange }: { patients: any[]; v
 // ═══════════════════════════════════════════════════════════════
 // DASHBOARD TAB
 // ═══════════════════════════════════════════════════════════════
-function DashboardTab({ clinic, onGoToPatients, onGoToVisits, onGoToSessions, onAddPatient, onAddVisit, onAddSession, onAlertClick, onRefresh }: any) {
+function DashboardTab({ clinic, waitingQueue, waitingLoading, onGoToPatients, onGoToVisits, onGoToSessions, onAddPatient, onAddVisit, onAddSession, onAlertClick, onRefresh, onAddWaiting, onUpdateWaiting, onDeleteWaiting }: any) {
   const d = clinic.dashboard
 
   if (clinic.dashboardLoading && !d) {
@@ -2015,6 +2790,56 @@ function DashboardTab({ clinic, onGoToPatients, onGoToVisits, onGoToSessions, on
           </CardContent>
         </Card>
       </div>
+
+      {/* Waiting Queue */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Timer className="w-4 h-4 text-blue-600" />
+              قائمة الانتظار
+              {waitingQueue.length > 0 && <Badge variant="secondary" className="bg-blue-100 text-blue-700">{waitingQueue.length}</Badge>}
+            </CardTitle>
+            <div className="flex gap-1">
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onAddWaiting}>
+                <Plus className="w-4 h-4 ml-1" />
+                إضافة
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {waitingLoading ? (
+            <Skeleton className="h-16 rounded-xl" />
+          ) : waitingQueue.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">لا يوجد مرضى في الانتظار</p>
+          ) : (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {waitingQueue.map((item: any) => (
+                <div key={item.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <UserIcon className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{item.patient?.name || '—'}</p>
+                      <p className="text-xs text-muted-foreground">{item.reason || '—'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {item.priority > 0 && <Badge variant="outline" className="text-[10px] text-red-600 border-red-200">عاجل</Badge>}
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] border-emerald-200 text-emerald-600" onClick={() => onUpdateWaiting(item.id, 'in-progress')}>فحص</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] border-purple-200 text-purple-600" onClick={() => onUpdateWaiting(item.id, 'completed')}>انتهى</Button>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 text-red-500 p-0" onClick={() => onDeleteWaiting(item.id)}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -2159,10 +2984,11 @@ function PatientsTab({ patients, loading, search, onSearch, onPatientClick, onAd
 // ═══════════════════════════════════════════════════════════════
 function PatientDetailTab({
   patient, loading, activeSubTab, onSubTabChange,
-  visits, sessions, notes, alerts,
+  visits, sessions, notes, alerts, laserRecords,
   totalVisitFees, totalVisitPaid, totalSessionPrice, totalSessionPaid,
   onEditPatient, onAddVisit, onAddSession, onAddNote, onAddAlert,
   onEditVisit, onEditSession, onDelete, onMarkAlertRead, services,
+  onWhatsApp,
 }: any) {
   if (loading) {
     return <div className="space-y-3"><Skeleton className="h-40 rounded-xl" /><Skeleton className="h-60 rounded-xl" /></div>
@@ -2240,15 +3066,20 @@ function PatientDetailTab({
               <Bell className="w-4 h-4 ml-1" />
               تنبيه
             </Button>
+            <Button size="sm" variant="outline" className="flex-1 border-green-200 text-green-600 hover:bg-green-50" onClick={() => onWhatsApp(patient.id, patient.name, patient.phone)}>
+              <MessageCircle className="w-4 h-4 ml-1" />
+              واتساب
+            </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Sub Tabs */}
       <Tabs value={activeSubTab} onValueChange={v => onSubTabChange(v as any)}>
-        <TabsList className="w-full grid grid-cols-4">
+        <TabsList className="w-full grid grid-cols-5">
           <TabsTrigger value="visits" className="text-xs">الزيارات ({visits.length})</TabsTrigger>
           <TabsTrigger value="sessions" className="text-xs">الجلسات ({sessions.length})</TabsTrigger>
+          <TabsTrigger value="laser" className="text-xs">الليزر ({(laserRecords || []).length})</TabsTrigger>
           <TabsTrigger value="notes" className="text-xs">الملاحظات ({notes.length})</TabsTrigger>
           <TabsTrigger value="alerts" className="text-xs">التنبيهات ({alerts.length})</TabsTrigger>
         </TabsList>
@@ -2328,6 +3159,51 @@ function PatientDetailTab({
                       <span className="text-emerald-600 font-medium">السعر: {formatCurrency(s.totalPrice)}</span>
                       <span className="text-blue-600 font-medium">المدفوع: {formatCurrency(s.paidAmount)}</span>
                     </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="laser" className="mt-3">
+          {(laserRecords || []).length === 0 ? (
+            <EmptyState icon={<Zap className="w-10 h-10" />} title="لا توجد سجلات ليزر" description="لم يتم تسجيل أي جلسة ليزر لهذا المريض" />
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {(laserRecords || []).map((lr: any) => (
+                <Card key={lr.id} className="hover:shadow-sm">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-amber-500" />
+                        <span className="font-medium text-sm">{lr.bodyArea}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => onDelete('laser', lr.id)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                      <div
+                        className="bg-gradient-to-r from-amber-400 to-orange-500 h-2 rounded-full transition-all"
+                        style={{ width: `${Math.min(((lr.completedSessions || 0) / (lr.totalSessions || 1)) * 100, 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>جلسات: {lr.completedSessions || 0} / {lr.totalSessions}</span>
+                      <span>{formatDate(lr.sessionDate)}</span>
+                    </div>
+                    {lr.nextSessionDate && (
+                      <p className="text-xs text-blue-600 mt-1">الجلسة القادمة: {formatDate(lr.nextSessionDate)}</p>
+                    )}
+                    {lr.price && (
+                      <div className="flex items-center gap-3 mt-1 text-xs">
+                        <span className="text-emerald-600">السعر: {formatCurrency(lr.price)}</span>
+                        <span className="text-blue-600">المدفوع: {formatCurrency(lr.paidAmount)}</span>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -2872,13 +3748,16 @@ function ReportsTab({ reportSubTab, onSubTabChange, dailyReport, weeklyReport, m
 // ═══════════════════════════════════════════════════════════════
 // MORE TAB
 // ═══════════════════════════════════════════════════════════════
-function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts, alertsLoading, onAddService, onEditService, onDeleteService, onAddAlert, onMarkAlertRead, onDeleteAlert, onRefreshServices, onRefreshAlerts, selectedTheme, onThemeChange, syncConnected, syncConnectionInfo, syncLastTime, backups, backupLoading, onCreateBackup, onImportBackup, onRestoreBackup, onDeleteBackup }: any) {
+function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts, alertsLoading, onAddService, onEditService, onDeleteService, onAddAlert, onMarkAlertRead, onDeleteAlert, onRefreshServices, onRefreshAlerts, selectedTheme, onThemeChange, syncConnected, syncConnectionInfo, syncLastTime, backups, backupLoading, onCreateBackup, onImportBackup, onRestoreBackup, onDeleteBackup, transactions, financeSummary, financeLoading, onAddTransaction, onEditTransaction, onDeleteTransaction, onRefreshFinance, reportSubTab, onReportSubTabChange, dailyReport, weeklyReport, monthlyReport, reportsLoading, reportsUnlocked, onReportsPasswordOpen, clinicServices, onRefreshReports, calendarMonth, onCalendarMonthChange, clinicVisits, clinicSessions, darkMode, onDarkModeToggle, lastAutoSave }: any) {
   return (
     <div className="space-y-4">
       <Tabs value={moreSubTab} onValueChange={v => onSubTabChange(v as any)}>
-        <TabsList className="w-full grid grid-cols-3">
+        <TabsList className="w-full grid grid-cols-6">
           <TabsTrigger value="services">الخدمات</TabsTrigger>
           <TabsTrigger value="alerts">التنبيهات</TabsTrigger>
+          <TabsTrigger value="finance">المالية</TabsTrigger>
+          <TabsTrigger value="reports">التقارير</TabsTrigger>
+          <TabsTrigger value="calendar">التقويم</TabsTrigger>
           <TabsTrigger value="settings">الإعدادات</TabsTrigger>
         </TabsList>
 
@@ -2986,6 +3865,57 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
           )}
         </TabsContent>
 
+        {/* Finance */}
+        <TabsContent value="finance" className="mt-4">
+          <FinanceSection
+            transactions={transactions}
+            financeSummary={financeSummary}
+            loading={financeLoading}
+            onAdd={onAddTransaction}
+            onEdit={onEditTransaction}
+            onDelete={onDeleteTransaction}
+            onRefresh={onRefreshFinance}
+          />
+        </TabsContent>
+
+        {/* Reports */}
+        <TabsContent value="reports" className="mt-4">
+          {reportsUnlocked ? (
+            <ReportsTab
+              reportSubTab={reportSubTab}
+              onSubTabChange={onReportSubTabChange}
+              dailyReport={dailyReport}
+              weeklyReport={weeklyReport}
+              monthlyReport={monthlyReport}
+              loading={reportsLoading}
+              services={clinicServices}
+              onRefresh={onRefreshReports}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg mb-4">
+                <Lock className="w-10 h-10 text-white" />
+              </div>
+              <h2 className="text-xl font-bold mb-2">التقارير محمية</h2>
+              <p className="text-sm text-muted-foreground mb-4">أدخل كلمة السر للوصول للتقارير</p>
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={onReportsPasswordOpen}>
+                <Lock className="w-4 h-4 ml-2" />
+                إدخال كلمة السر
+              </Button>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Calendar */}
+        <TabsContent value="calendar" className="mt-4">
+          <CalendarSection
+            month={calendarMonth}
+            onMonthChange={onCalendarMonthChange}
+            visits={clinicVisits}
+            sessions={clinicSessions}
+          />
+        </TabsContent>
+
         {/* Settings */}
         <TabsContent value="settings" className="mt-4">
           <Card>
@@ -3038,6 +3968,37 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
                     </p>
                   </CardContent>
                 </Card>
+              </div>
+
+              <Separator />
+
+              {/* Dark Mode */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  {darkMode ? <Moon className="w-5 h-5 text-indigo-500" /> : <Sun className="w-5 h-5 text-amber-500" />}
+                  <p className="text-sm font-medium">الوضع الليلي</p>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <span className="text-sm">{darkMode ? 'مفعّل' : 'معطّل'}</span>
+                  <Switch checked={darkMode} onCheckedChange={onDarkModeToggle} />
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Auto-save */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Save className="w-5 h-5 text-muted-foreground" />
+                  <p className="text-sm font-medium">الحفظ التلقائي</p>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div>
+                    <span className="text-sm">نسخ تلقائي كل 24 ساعة</span>
+                    {lastAutoSave && <p className="text-[10px] text-muted-foreground mt-0.5">آخر حفظ: {lastAutoSave}</p>}
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">مفعّل</span>
+                </div>
               </div>
 
               <Separator />
@@ -3101,15 +4062,6 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
                   </label>
                 </div>
 
-                {/* Auto backup status */}
-                <div className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">نسخ تلقائي كل 24 ساعة</span>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">مفعّل</span>
-                </div>
-
                 {/* Saved backups list */}
                 {backups.length > 0 && (
                   <div className="space-y-1.5">
@@ -3150,8 +4102,8 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
                 <div className="flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium">عيادة الجلدية</p>
-                    <p className="text-xs text-muted-foreground">نظام إدارة العيادة v1.0</p>
+                    <p className="text-sm font-medium">عيادة المغازى</p>
+                    <p className="text-xs text-muted-foreground">نظام إدارة العيادة v2.0</p>
                   </div>
                 </div>
               </div>
@@ -3161,16 +4113,298 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
                   <Stethoscope className="w-8 h-8 text-white" />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  نظام إدارة عيادة الأمراض الجلدية
+                  نظام إدارة عيادة المغازى
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  إدارة المرضى والزيارات والجلسات والتقارير
+                  إدارة المرضى والزيارات والجلسات والليزر والتقارير
                 </p>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LASER SECTION
+// ═══════════════════════════════════════════════════════════════
+function LaserSection({ records, packages, loading, patients, onAddRecord, onEditRecord, onDeleteRecord, onAddPackage, onEditPackage, onDeletePackage, onRefresh }: any) {
+  const [laserSearch, setLaserSearch] = useState('')
+  const [statusFilter, setLaserFilter] = useState('')
+  const [showPackages, setShowPackages] = useState(false)
+
+  const filtered = records.filter((r: any) => {
+    const patient = patients.find((p: any) => p.id === r.patientId)
+    const matchSearch = !laserSearch || patient?.name?.includes(laserSearch) || r.bodyArea?.includes(laserSearch)
+    const matchStatus = !statusFilter || r.status === statusFilter
+    return matchSearch && matchStatus
+  })
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-wrap gap-2">
+            <div className="flex-1 min-w-[140px]">
+              <Input placeholder="بحث بالاسم أو المنطقة..." value={laserSearch} onChange={e => setLaserSearch(e.target.value)} className="h-9 text-sm pr-9" />
+            </div>
+            <div className="min-w-[120px]">
+              <Select value={statusFilter} onValueChange={v => setLaserFilter(v === 'all' ? '' : v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="الكل" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">الكل</SelectItem>
+                  <SelectItem value="active">نشط</SelectItem>
+                  <SelectItem value="completed">مكتمل</SelectItem>
+                  <SelectItem value="paused">متوقف</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" size="icon" className="h-9" onClick={onRefresh}><RefreshCw className="w-4 h-4" /></Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 h-9" onClick={onAddRecord}><Plus className="w-4 h-4 ml-1" />إضافة</Button>
+            <Button variant="outline" size="sm" className="h-9" onClick={() => setShowPackages(!showPackages)}>
+              <Zap className="w-4 h-4 ml-1" />
+              الباقات
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Packages Sub-section */}
+      {showPackages && (
+        <Card className="border-amber-200 bg-amber-50/30">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" />باقات الليزر</CardTitle>
+              <Button size="sm" onClick={onAddPackage}><Plus className="w-4 h-4 ml-1" />باقة جديدة</Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {packages.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-3">لا توجد باقات</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {packages.map((pkg: any) => (
+                  <div key={pkg.id} className="flex items-center justify-between p-2 bg-white rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium">{pkg.name}</p>
+                      <p className="text-xs text-muted-foreground">{pkg.bodyArea} · {pkg.sessions} جلسة</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="bg-amber-100 text-amber-700">{formatCurrency(pkg.price)}</Badge>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEditPackage(pkg)}><Edit3 className="w-3 h-3" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => onDeletePackage(pkg.id)}><Trash2 className="w-3 h-3" /></Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Records List */}
+      {loading ? (
+        <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={<Zap className="w-12 h-12" />} title="لا توجد سجلات ليزر" description="لم يتم تسجيل أي سجل ليزر بعد" action={onAddRecord} actionLabel="إضافة سجل ليزر" />
+      ) : (
+        <div className="space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto">
+          {filtered.map((r: any) => {
+            const patient = patients.find((p: any) => p.id === r.patientId)
+            const progress = Math.min(((r.completedSessions || 0) / (r.totalSessions || 1)) * 100, 100)
+            return (
+              <Card key={r.id} className="hover:shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium truncate">{patient?.name || '—'}</p>
+                        <Badge variant="secondary" className={
+                          r.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                          r.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                          r.status === 'paused' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
+                        }>
+                          {r.status === 'active' ? 'نشط' : r.status === 'completed' ? 'مكتمل' : r.status === 'paused' ? 'متوقف' : 'ملغي'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-amber-500" />{r.bodyArea}</span>
+                        <span>{formatDate(r.sessionDate)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditRecord(r)}><Edit3 className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => onDeleteRecord(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                    <div className={`h-2.5 rounded-full transition-all ${progress >= 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ width: `${progress}%` }} />
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">{r.completedSessions || 0} / {r.totalSessions} جلسة</span>
+                    {r.price && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-emerald-600 font-medium">{formatCurrency(r.price)}</span>
+                        <span className="text-blue-600">{formatCurrency(r.paidAmount)}</span>
+                      </div>
+                    )}
+                  </div>
+                  {r.nextSessionDate && <p className="text-xs text-blue-600 mt-1">الجلسة القادمة: {formatDate(r.nextSessionDate)}</p>}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FINANCE SECTION
+// ═══════════════════════════════════════════════════════════════
+function FinanceSection({ transactions, financeSummary, loading, onAdd, onEdit, onDelete, onRefresh }: any) {
+  return (
+    <div className="space-y-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="text-center">
+          <CardContent className="p-4">
+            <div className="flex justify-center mb-1"><Wallet className="w-5 h-5 text-emerald-600" /></div>
+            <p className="text-lg font-bold text-emerald-600">{formatCurrency(financeSummary?.totalIncome)}</p>
+            <p className="text-xs text-muted-foreground">الإيرادات</p>
+          </CardContent>
+        </Card>
+        <Card className="text-center">
+          <CardContent className="p-4">
+            <div className="flex justify-center mb-1"><Wallet className="w-5 h-5 text-red-600" /></div>
+            <p className="text-lg font-bold text-red-600">{formatCurrency(financeSummary?.totalExpenses)}</p>
+            <p className="text-xs text-muted-foreground">المصروفات</p>
+          </CardContent>
+        </Card>
+        <Card className="text-center">
+          <CardContent className="p-4">
+            <div className="flex justify-center mb-1"><DollarSign className="w-5 h-5 text-blue-600" /></div>
+            <p className="text-lg font-bold text-blue-600">{formatCurrency((financeSummary?.totalIncome || 0) - (financeSummary?.totalExpenses || 0))}</p>
+            <p className="text-xs text-muted-foreground">صافي</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Actions */}
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={onRefresh}><RefreshCw className="w-4 h-4" /></Button>
+        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onAdd}><Plus className="w-4 h-4 ml-1" />إضافة معاملة</Button>
+      </div>
+
+      {/* Transactions List */}
+      {loading ? (
+        <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+      ) : transactions.length === 0 ? (
+        <EmptyState icon={<Wallet className="w-12 h-12" />} title="لا توجد معاملات" description="لم يتم تسجيل أي معاملة مالية بعد" action={onAdd} actionLabel="إضافة معاملة" />
+      ) : (
+        <div className="space-y-2 max-h-[calc(100vh-400px)] overflow-y-auto">
+          {transactions.map((t: any) => (
+            <Card key={t.id} className="hover:shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${t.type === 'income' ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                      {t.type === 'income' ? <TrendingUp className="w-5 h-5 text-emerald-600" /> : <TrendingUp className="w-5 h-5 text-red-600 rotate-180" />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{t.description || t.category}</p>
+                      <p className="text-xs text-muted-foreground">{t.category} · {formatDate(t.date)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                    </span>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(t)}><Edit3 className="w-3.5 h-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => onDelete(t.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CALENDAR SECTION
+// ═══════════════════════════════════════════════════════════════
+function CalendarSection({ month, onMonthChange, visits, sessions }: any) {
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
+
+  const dateStr = (d: Date) => d.toISOString().split('T')[0]
+
+  const dayVisits = selectedDate ? (visits || []).filter((v: any) => dateStr(new Date(v.visitDate)) === dateStr(selectedDate)) : []
+  const daySessions = selectedDate ? (sessions || []).filter((s: any) => dateStr(new Date(s.sessionDate)) === dateStr(selectedDate)) : []
+
+  // Get dates with events
+  const eventDates = useMemo(() => {
+    const dates = new Set<string>()
+    ;(visits || []).forEach((v: any) => { if (v.visitDate) dates.add(dateStr(new Date(v.visitDate))) })
+    ;(sessions || []).forEach((s: any) => { if (s.sessionDate) dates.add(dateStr(new Date(s.sessionDate))) })
+    return dates
+  }, [visits, sessions])
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-4 flex justify-center">
+          <CalendarComponent
+            mode="single"
+            selected={selectedDate}
+            onSelect={setSelectedDate}
+            month={month}
+            onMonthChange={onMonthChange}
+            className="rounded-md border"
+            modifiers={{ hasEvent: (date) => eventDates.has(dateStr(date)) }}
+            modifiersStyles={{ hasEvent: { fontWeight: 'bold', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '50%' } }}
+          />
+        </CardContent>
+      </Card>
+
+      {selectedDate && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">{formatDate(selectedDate)}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {dayVisits.length === 0 && daySessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">لا توجد أحداث في هذا اليوم</p>
+            ) : (
+              <div className="space-y-2">
+                {dayVisits.map((v: any) => (
+                  <div key={v.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded-lg">
+                    <Stethoscope className="w-4 h-4 text-blue-600 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{v.patient?.name || '—'}</p>
+                      <p className="text-xs text-muted-foreground">زيارة - {formatDateTime(v.visitDate)}</p>
+                    </div>
+                  </div>
+                ))}
+                {daySessions.map((s: any) => (
+                  <div key={s.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded-lg">
+                    <CalendarDays className="w-4 h-4 text-purple-600 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{s.patient?.name || '—'}</p>
+                      <p className="text-xs text-muted-foreground">{s.service?.name || 'جلسة'} - {formatDateTime(s.sessionDate)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
@@ -3236,3 +4470,4 @@ function ReportSkeleton() {
 
 // ─── Re-export Popover for PatientSearchSelect ─────────────────
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar as CalendarComponent } from '@/components/ui/calendar'
