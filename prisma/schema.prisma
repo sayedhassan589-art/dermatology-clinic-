@@ -139,6 +139,7 @@ model LaserRecord {
   package         LaserPackage? @relation(fields: [packageId], references: [id])
   bodyArea        String
   sessionNumber   Int           @default(1)
+  completedSessions Int         @default(0)
   totalSessions   Int
   sessionDate     DateTime
   nextSessionDate DateTime?
@@ -146,9 +147,19 @@ model LaserRecord {
   notes           String?
   price           Float?
   paidAmount      Float         @default(0)
+  skinType        String?
+  hairColor       String?
+  skinSensitivity String?
+  energyLevel     String?
+  pulseDuration   String?
+  spotSize        String?
+  machineUsed     String?
+  freezeMethod    String?
+  numPulses       Int?
   createdBy       String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  laserSessions   LaserSession[]
 }
 
 model LaserPackage {
@@ -162,6 +173,40 @@ model LaserPackage {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   records     LaserRecord[]
+}
+
+model LaserSession {
+  id              String       @id @default(cuid())
+  laserRecordId   String
+  laserRecord     LaserRecord  @relation(fields: [laserRecordId], references: [id], onDelete: Cascade)
+  sessionNumber   Int
+  sessionDate     DateTime
+  nextSessionDate DateTime?
+  energyLevel     String?
+  pulseDuration   String?
+  spotSize        String?
+  numPulses       Int?
+  freezeMethod    String?
+  notes           String?
+  painLevel       Int?
+  skinReaction    String?
+  hairReduction   Int?
+  price           Float?
+  paidAmount      Float        @default(0)
+  status          String       @default("completed")
+  createdBy       String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model LaserSetting {
+  id              String   @id @default(cuid())
+  settingKey      String   @unique
+  settingValue    String
+  settingType     String   @default("text")
+  category        String   @default("general")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model Transaction {

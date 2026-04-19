@@ -22,6 +22,7 @@ import {
   updateAlertAPI,
   deleteAlertAPI,
   getLaserRecordsAPI,
+  getLaserRecordAPI,
   createLaserRecordAPI,
   updateLaserRecordAPI,
   deleteLaserRecordAPI,
@@ -29,6 +30,13 @@ import {
   createLaserPackageAPI,
   updateLaserPackageAPI,
   deleteLaserPackageAPI,
+  getLaserSessionsAPI,
+  createLaserSessionAPI,
+  updateLaserSessionAPI,
+  deleteLaserSessionAPI,
+  getLaserSettingsAPI,
+  updateLaserSettingsAPI,
+  getLaserStatsAPI,
   getTransactionsAPI,
   createTransactionAPI,
   updateTransactionAPI,
@@ -143,6 +151,13 @@ import {
   Download,
   Upload,
   RotateCcw,
+  Target,
+  Thermometer,
+  Gauge,
+  TimerReset,
+  ArrowLeftRight,
+  Sparkles,
+  Flame,
 } from 'lucide-react'
 
 // ─── Helpers ───────────────────────────────────────────────────
@@ -238,6 +253,44 @@ function removeThemeCSS() {
   props.forEach(p => root.style.removeProperty(p))
 }
 
+// ─── Professional Body Areas ──────────────────────────────
+const LASER_BODY_AREAS = [
+  { value: 'face_full', label: 'الوجه الكامل', icon: '👤' },
+  { value: 'upper_lip', label: 'الشارب', icon: '✂️' },
+  { value: 'chin', label: 'الذقن', icon: '✂️' },
+  { value: 'neck', label: 'الرقبة', icon: '🔗' },
+  { value: 'armpits', label: 'الإبطين', icon: '💪' },
+  { value: 'full_arms', label: 'الذراعين الكاملين', icon: '💪' },
+  { value: 'hands', label: 'اليدين', icon: '🤲' },
+  { value: 'fingers', label: 'الأصابع', icon: '👆' },
+  { value: 'chest', label: 'الصدر', icon: '🫁' },
+  { value: 'abdomen', label: 'البطن', icon: '—' },
+  { value: 'back', label: 'الظهر', icon: '—' },
+  { value: 'back_abdomen', label: 'البطن والظهر', icon: '—' },
+  { value: 'bikini', label: 'البيكيني', icon: '—' },
+  { value: 'bikini_line', label: 'البيكيني لاين', icon: '—' },
+  { value: 'brazilian', label: 'البرازيليان', icon: '—' },
+  { value: 'full_legs', label: 'الساقين الكاملين', icon: '🦵' },
+  { value: 'thighs', label: 'الفخذين', icon: '🦵' },
+  { value: 'lower_legs', label: 'السمانة', icon: '🦵' },
+  { value: 'feet', label: 'القدمين', icon: '🦶' },
+  { value: 'full_body', label: 'الجسم كامل', icon: '⭐' },
+  { value: 'full_body_no_back', label: 'الجسم كامل بدون بطن وظهر', icon: '⭐' },
+  { value: 'full_body_except_face', label: 'الجسم كامل بدون الوجه', icon: '⭐' },
+  { value: 'ears', label: 'الأذنين', icon: '👂' },
+  { value: 'shoulders', label: 'الكتفين', icon: '—' },
+  { value: 'beard_area', label: 'منطقة الذقن والشارب (الرجل)', icon: '✂️' },
+  { value: 'happy_trail', label: 'خط البطن (الرجل)', icon: '—' },
+]
+
+const LASER_BODY_AREA_LABELS: Record<string, string> = {}
+LASER_BODY_AREAS.forEach(a => { LASER_BODY_AREA_LABELS[a.value] = a.label })
+
+const SKIN_TYPES = ['1', '2', '3', '4', '5', '6']
+const HAIR_COLORS = ['أسود', 'بني غامق', 'بني', 'بني فاتح', 'أشقر', 'أحمر', 'رمادي', 'أبيض']
+const SKIN_REACTIONS = ['بدون', 'احمرار خفيف', 'احمرار متوسط', 'تورم خفيف', 'حروق', 'تصبغ', 'ندبات']
+const PAIN_LEVELS = ['بدون', 'خفيف', 'متوسط', 'شديد']
+
 // ─── Type definitions ──────────────────────────────────────────
 type MainTab = 'dashboard' | 'patients' | 'visits' | 'sessions' | 'laser' | 'more'
 type SubView = 'list' | 'detail' | 'form'
@@ -305,8 +358,18 @@ export default function Home() {
   const [editLaserOpen, setEditLaserOpen] = useState(false)
   const [addPackageOpen, setAddPackageOpen] = useState(false)
   const [editPackageOpen, setEditPackageOpen] = useState(false)
-  const [laserForm, setLaserForm] = useState({ patientId: '', bodyArea: '', totalSessions: '8', sessionDate: todayStr(), nextSessionDate: '', status: 'active', packageId: '', price: '', paidAmount: '', notes: '' })
+  const [laserForm, setLaserForm] = useState({ patientId: '', bodyArea: '', totalSessions: '8', sessionDate: todayStr(), nextSessionDate: '', status: 'active', packageId: '', price: '', paidAmount: '', notes: '', skinType: '', hairColor: '', skinSensitivity: '', energyLevel: '', pulseDuration: '', spotSize: '', machineUsed: '', freezeMethod: '', numPulses: '' })
   const [packageForm, setPackageForm] = useState({ name: '', description: '', bodyArea: '', sessions: '8', price: '' })
+  const [selectedLaserCase, setSelectedLaserCase] = useState<any>(null)
+  const [laserView, setLaserView] = useState<'cases' | 'detail' | 'packages' | 'stats' | 'settings'>('cases')
+  const [laserStats, setLaserStats] = useState<any>(null)
+  const [laserSettings, setLaserSettings] = useState<Record<string, any>>({})
+  const [laserStatsLoading, setLaserStatsLoading] = useState(false)
+  const [laserSettingsLoading, setLaserSettingsLoading] = useState(false)
+  const [addLaserSessionOpen, setAddLaserSessionOpen] = useState(false)
+  const [editLaserSessionOpen, setEditLaserSessionOpen] = useState(false)
+  const [laserSessionForm, setLaserSessionForm] = useState({ sessionNumber: '', sessionDate: todayStr(), nextSessionDate: '', energyLevel: '', pulseDuration: '', spotSize: '', numPulses: '', freezeMethod: '', notes: '', painLevel: '', skinReaction: '', hairReduction: '', price: '', paidAmount: '', status: 'completed' })
+  const [laserBodyFilter, setLaserBodyFilter] = useState('')
 
   // ─── Finance State ──────────────────────────────────────
   const [transactions, setTransactions] = useState<any[]>([])
@@ -518,6 +581,24 @@ export default function Home() {
     } catch { /* silent */ }
   }, [])
 
+  const fetchLaserStats = useCallback(async (params?: any) => {
+    setLaserStatsLoading(true)
+    try {
+      const data = await getLaserStatsAPI(params)
+      setLaserStats(data)
+    } catch { /* silent */ }
+    setLaserStatsLoading(false)
+  }, [])
+
+  const fetchLaserSettings = useCallback(async () => {
+    setLaserSettingsLoading(true)
+    try {
+      const data = await getLaserSettingsAPI()
+      setLaserSettings(data.settings || {})
+    } catch { /* silent */ }
+    setLaserSettingsLoading(false)
+  }, [])
+
   // ─── Finance data ──────────────────────────────────────
   const fetchFinanceData = useCallback(async (params?: any) => {
     setFinanceLoading(true)
@@ -556,6 +637,8 @@ export default function Home() {
     } else if (activeTab === 'laser') {
       void fetchLaserRecords()
       void fetchLaserPackages()
+      void fetchLaserStats()
+      void fetchLaserSettings()
     } else if (activeTab === 'more') {
       if (moreSubTab === 'services') void clinic.fetchServices()
       else if (moreSubTab === 'alerts') void clinic.fetchAlerts()
@@ -892,6 +975,7 @@ export default function Home() {
       else if (deleteTarget.type === 'alert') await deleteAlertAPI(deleteTarget.id)
       else if (deleteTarget.type === 'service') await deleteServiceAPI(deleteTarget.id)
       else if (deleteTarget.type === 'laser') await deleteLaserRecordAPI(deleteTarget.id)
+      else if (deleteTarget.type === 'laser_session') await deleteLaserSessionAPI(deleteTarget.id)
       else if (deleteTarget.type === 'package') await deleteLaserPackageAPI(deleteTarget.id)
       else if (deleteTarget.type === 'transaction') await deleteTransactionAPI(deleteTarget.id)
       toast.success('تم الحذف بنجاح')
@@ -902,8 +986,12 @@ export default function Home() {
       clinic.fetchServices()
       clinic.fetchAlerts()
       fetchLaserRecords()
+      fetchLaserStats()
       fetchFinanceData()
       if (selectedPatientId) clinic.fetchPatientDetail(selectedPatientId)
+      if (deleteTarget.type === 'laser_session' && selectedLaserCase) {
+        void getLaserRecordAPI(selectedLaserCase.id).then(d => setSelectedLaserCase(d.record))
+      }
     } catch (err: any) {
       toast.error(err.message || 'خطأ في الحذف')
     }
@@ -948,8 +1036,9 @@ export default function Home() {
       await createLaserRecordAPI(data)
       toast.success('تم إضافة سجل الليزر بنجاح')
       setAddLaserOpen(false)
-      setLaserForm({ patientId: '', bodyArea: '', totalSessions: '8', sessionDate: todayStr(), nextSessionDate: '', status: 'active', packageId: '', price: '', paidAmount: '', notes: '' })
+      setLaserForm({ patientId: '', bodyArea: '', totalSessions: '8', sessionDate: todayStr(), nextSessionDate: '', status: 'active', packageId: '', price: '', paidAmount: '', notes: '', skinType: '', hairColor: '', skinSensitivity: '', energyLevel: '', pulseDuration: '', spotSize: '', machineUsed: '', freezeMethod: '', numPulses: '' })
       fetchLaserRecords()
+      fetchLaserStats()
     } catch (err: any) {
       toast.error(err.message || 'خطأ في إضافة سجل الليزر')
     }
@@ -989,6 +1078,15 @@ export default function Home() {
       price: r.price?.toString() || '',
       paidAmount: r.paidAmount?.toString() || '',
       notes: r.notes || '',
+      skinType: r.skinType || '',
+      hairColor: r.hairColor || '',
+      skinSensitivity: r.skinSensitivity || '',
+      energyLevel: r.energyLevel || '',
+      pulseDuration: r.pulseDuration || '',
+      spotSize: r.spotSize || '',
+      machineUsed: r.machineUsed || '',
+      freezeMethod: r.freezeMethod || '',
+      numPulses: r.numPulses?.toString() || '',
     })
     setEditLaserOpen(true)
   }
@@ -1040,6 +1138,145 @@ export default function Home() {
       price: p.price?.toString() || '',
     })
     setEditPackageOpen(true)
+  }
+
+  // ─── Laser Session CRUD ─────────────────────────────────
+  const handleCreateLaserSession = async () => {
+    if (!selectedLaserCase) return
+    if (!laserSessionForm.sessionDate) {
+      toast.error('يرجى إدخال تاريخ الجلسة')
+      return
+    }
+    try {
+      const nextSessionDateStr = laserSessionForm.nextSessionDate || undefined
+      const data = {
+        laserRecordId: selectedLaserCase.id,
+        sessionNumber: selectedLaserCase.sessionNumber,
+        sessionDate: laserSessionForm.sessionDate,
+        nextSessionDate: nextSessionDateStr,
+        energyLevel: laserSessionForm.energyLevel || undefined,
+        pulseDuration: laserSessionForm.pulseDuration || undefined,
+        spotSize: laserSessionForm.spotSize || undefined,
+        numPulses: laserSessionForm.numPulses || undefined,
+        freezeMethod: laserSessionForm.freezeMethod || undefined,
+        notes: laserSessionForm.notes || undefined,
+        painLevel: PAIN_LEVELS.indexOf(laserSessionForm.painLevel) >= 0 ? PAIN_LEVELS.indexOf(laserSessionForm.painLevel) : undefined,
+        skinReaction: laserSessionForm.skinReaction || undefined,
+        hairReduction: laserSessionForm.hairReduction ? parseInt(laserSessionForm.hairReduction) : undefined,
+        price: laserSessionForm.price ? parseFloat(laserSessionForm.price) : undefined,
+        paidAmount: laserSessionForm.paidAmount ? parseFloat(laserSessionForm.paidAmount) : 0,
+        status: laserSessionForm.status,
+        createdBy: user?.id,
+      }
+      const result = await createLaserSessionAPI(data)
+      toast.success('تم تسجيل الجلسة بنجاح')
+      setAddLaserSessionOpen(false)
+      setLaserSessionForm({ sessionNumber: '', sessionDate: todayStr(), nextSessionDate: '', energyLevel: '', pulseDuration: '', spotSize: '', numPulses: '', freezeMethod: '', notes: '', painLevel: '', skinReaction: '', hairReduction: '', price: '', paidAmount: '', status: 'completed' })
+      // Refresh case detail
+      const updatedRecord = await getLaserRecordAPI(selectedLaserCase.id)
+      setSelectedLaserCase(updatedRecord.record)
+      fetchLaserRecords()
+      fetchLaserStats()
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في تسجيل الجلسة')
+    }
+  }
+
+  const handleEditLaserSession = async () => {
+    if (!editItem) return
+    try {
+      await updateLaserSessionAPI(editItem.id, {
+        sessionDate: laserSessionForm.sessionDate,
+        nextSessionDate: laserSessionForm.nextSessionDate || undefined,
+        energyLevel: laserSessionForm.energyLevel || undefined,
+        pulseDuration: laserSessionForm.pulseDuration || undefined,
+        spotSize: laserSessionForm.spotSize || undefined,
+        numPulses: laserSessionForm.numPulses || undefined,
+        freezeMethod: laserSessionForm.freezeMethod || undefined,
+        notes: laserSessionForm.notes || undefined,
+        painLevel: PAIN_LEVELS.indexOf(laserSessionForm.painLevel) >= 0 ? PAIN_LEVELS.indexOf(laserSessionForm.painLevel) : undefined,
+        skinReaction: laserSessionForm.skinReaction || undefined,
+        hairReduction: laserSessionForm.hairReduction ? parseInt(laserSessionForm.hairReduction) : undefined,
+        price: laserSessionForm.price ? parseFloat(laserSessionForm.price) : undefined,
+        paidAmount: laserSessionForm.paidAmount ? parseFloat(laserSessionForm.paidAmount) : 0,
+        status: laserSessionForm.status,
+      })
+      toast.success('تم تحديث الجلسة')
+      setEditLaserSessionOpen(false)
+      if (selectedLaserCase) {
+        const updatedRecord = await getLaserRecordAPI(selectedLaserCase.id)
+        setSelectedLaserCase(updatedRecord.record)
+      }
+      fetchLaserRecords()
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في تحديث الجلسة')
+    }
+  }
+
+  const openEditLaserSession = (s: any) => {
+    setEditItem(s)
+    setLaserSessionForm({
+      sessionNumber: s.sessionNumber?.toString() || '',
+      sessionDate: s.sessionDate ? new Date(s.sessionDate).toISOString().slice(0, 10) : todayStr(),
+      nextSessionDate: s.nextSessionDate ? new Date(s.nextSessionDate).toISOString().slice(0, 10) : '',
+      energyLevel: s.energyLevel || '',
+      pulseDuration: s.pulseDuration || '',
+      spotSize: s.spotSize || '',
+      numPulses: s.numPulses?.toString() || '',
+      freezeMethod: s.freezeMethod || '',
+      notes: s.notes || '',
+      painLevel: s.painLevel !== undefined && s.painLevel !== null ? PAIN_LEVELS[s.painLevel] || '' : '',
+      skinReaction: s.skinReaction || '',
+      hairReduction: s.hairReduction?.toString() || '',
+      price: s.price?.toString() || '',
+      paidAmount: s.paidAmount?.toString() || '',
+      status: s.status || 'completed',
+    })
+    setEditLaserSessionOpen(true)
+  }
+
+  const openAddLaserSession = () => {
+    if (!selectedLaserCase) return
+    const intervalDays = laserSettings.session_interval_days || 30
+    const nextDate = new Date()
+    nextDate.setDate(nextDate.getDate() + intervalDays)
+    setLaserSessionForm({
+      sessionNumber: selectedLaserCase.sessionNumber?.toString() || '1',
+      sessionDate: todayStr(),
+      nextSessionDate: nextDate.toISOString().slice(0, 10),
+      energyLevel: laserSettings.default_energy?.toString() || '',
+      pulseDuration: laserSettings.default_pulse?.toString() || '',
+      spotSize: laserSettings.default_spot_size?.toString() || '',
+      numPulses: '',
+      freezeMethod: laserSettings.default_freeze || '',
+      notes: '',
+      painLevel: '',
+      skinReaction: '',
+      hairReduction: '',
+      price: '',
+      paidAmount: '',
+      status: 'completed',
+    })
+    setAddLaserSessionOpen(true)
+  }
+
+  const openLaserCaseDetail = async (record: any) => {
+    try {
+      const data = await getLaserRecordAPI(record.id)
+      setSelectedLaserCase(data.record)
+      setLaserView('detail')
+    } catch (err: any) {
+      toast.error('خطأ في تحميل بيانات الحالة')
+    }
+  }
+
+  const handleSaveLaserSettings = async () => {
+    try {
+      await updateLaserSettingsAPI(laserSettings)
+      toast.success('تم حفظ إعدادات الليزر')
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في حفظ الإعدادات')
+    }
   }
 
   // ─── Finance CRUD ───────────────────────────────────────
@@ -1438,13 +1675,27 @@ export default function Home() {
               packages={laserPackages}
               loading={laserLoading}
               patients={clinic.patients}
-              onAddRecord={() => { setLaserForm({ patientId: '', bodyArea: '', totalSessions: '8', sessionDate: todayStr(), nextSessionDate: '', status: 'active', packageId: '', price: '', paidAmount: '', notes: '' }); setAddLaserOpen(true) }}
+              laserView={laserView}
+              setLaserView={setLaserView}
+              selectedLaserCase={selectedLaserCase}
+              setSelectedLaserCase={setSelectedLaserCase}
+              laserStats={laserStats}
+              laserStatsLoading={laserStatsLoading}
+              laserSettings={laserSettings}
+              setLaserSettings={setLaserSettings}
+              laserSettingsLoading={laserSettingsLoading}
+              onSaveSettings={handleSaveLaserSettings}
+              onAddRecord={() => { setLaserForm({ patientId: '', bodyArea: '', totalSessions: laserSettings.default_total_sessions?.toString() || '8', sessionDate: todayStr(), nextSessionDate: '', status: 'active', packageId: '', price: '', paidAmount: '', notes: '', skinType: '', hairColor: '', skinSensitivity: '', energyLevel: laserSettings.default_energy?.toString() || '', pulseDuration: laserSettings.default_pulse?.toString() || '', spotSize: laserSettings.default_spot_size?.toString() || '', machineUsed: laserSettings.default_machine || '', freezeMethod: laserSettings.default_freeze || '', numPulses: '' }); setAddLaserOpen(true) }}
               onEditRecord={openEditLaserRecord}
               onDeleteRecord={(id) => confirmDelete('laser', id)}
+              onOpenCaseDetail={openLaserCaseDetail}
               onAddPackage={() => { setPackageForm({ name: '', description: '', bodyArea: '', sessions: '8', price: '' }); setAddPackageOpen(true) }}
               onEditPackage={openEditLaserPackage}
               onDeletePackage={(id) => confirmDelete('package', id)}
-              onRefresh={() => { fetchLaserRecords(); fetchLaserPackages() }}
+              onAddSession={openAddLaserSession}
+              onEditSession={openEditLaserSession}
+              onDeleteSession={(id) => confirmDelete('laser_session', id)}
+              onRefresh={() => { fetchLaserRecords(); fetchLaserPackages(); fetchLaserStats(); fetchLaserSettings() }}
             />
           )}
 
@@ -2102,11 +2353,11 @@ export default function Home() {
 
       {/* ─── ADD LASER RECORD DIALOG ────────────────── */}
       <Dialog open={addLaserOpen} onOpenChange={setAddLaserOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Zap className="w-5 h-5 text-amber-500" />
-              إضافة سجل ليزر جديد
+              إضافة حالة ليزر جديدة
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
@@ -2114,19 +2365,31 @@ export default function Home() {
               <Label>المريض *</Label>
               <PatientSearchSelect patients={clinic.patients} value={laserForm.patientId} onChange={v => setLaserForm(p => ({ ...p, patientId: v }))} />
             </div>
+            <div className="space-y-1.5">
+              <Label>منطقة الجسم *</Label>
+              <Select value={laserForm.bodyArea} onValueChange={v => setLaserForm(p => ({ ...p, bodyArea: v }))}>
+                <SelectTrigger><SelectValue placeholder="اختر المنطقة" /></SelectTrigger>
+                <SelectContent>
+                  {LASER_BODY_AREAS.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>منطقة الجسم *</Label>
-                <Select value={laserForm.bodyArea} onValueChange={v => setLaserForm(p => ({ ...p, bodyArea: v }))}>
-                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
-                  <SelectContent>
-                    {['الوجه', 'الرقبة', 'الإبطين', 'الذراعين', 'الصدر', 'البطن', 'الظهر', 'البيكيني', 'الساقين', 'الشارب', 'الذقن'].map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-1.5">
                 <Label>عدد الجلسات</Label>
                 <Input type="number" value={laserForm.totalSessions} onChange={e => setLaserForm(p => ({ ...p, totalSessions: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>الحالة</Label>
+                <Select value={laserForm.status} onValueChange={v => setLaserForm(p => ({ ...p, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">نشط</SelectItem>
+                    <SelectItem value="completed">مكتمل</SelectItem>
+                    <SelectItem value="paused">متوقف</SelectItem>
+                    <SelectItem value="cancelled">ملغي</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -2139,18 +2402,79 @@ export default function Home() {
                 <Input type="date" value={laserForm.nextSessionDate} onChange={e => setLaserForm(p => ({ ...p, nextSessionDate: e.target.value }))} dir="ltr" />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>الحالة</Label>
-              <Select value={laserForm.status} onValueChange={v => setLaserForm(p => ({ ...p, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">نشط</SelectItem>
-                  <SelectItem value="completed">مكتمل</SelectItem>
-                  <SelectItem value="paused">متوقف</SelectItem>
-                  <SelectItem value="cancelled">ملغي</SelectItem>
-                </SelectContent>
-              </Select>
+
+            <Separator />
+
+            {/* Patient Assessment */}
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">تقييم المريض</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>نوع البشرة (فيتز)</Label>
+                <Select value={laserForm.skinType} onValueChange={v => setLaserForm(p => ({ ...p, skinType: v }))}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>
+                    {SKIN_TYPES.map(t => <SelectItem key={t} value={t}>نوع {t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>لون الشعر</Label>
+                <Select value={laserForm.hairColor} onValueChange={v => setLaserForm(p => ({ ...p, hairColor: v }))}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>
+                    {HAIR_COLORS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>حساسية البشرة</Label>
+                <Select value={laserForm.skinSensitivity} onValueChange={v => setLaserForm(p => ({ ...p, skinSensitivity: v }))}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>
+                    {['عادية', 'حساسة', 'حساسة جدا', 'تتعرض لحروق الشمس'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>الجهاز المستخدم</Label>
+                <Input value={laserForm.machineUsed} onChange={e => setLaserForm(p => ({ ...p, machineUsed: e.target.value }))} placeholder={laserSettings.default_machine || 'اسم الجهاز'} />
+              </div>
             </div>
+
+            <Separator />
+
+            {/* Treatment Parameters */}
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">إعدادات العلاج</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label>الطاقة (J/cm2)</Label>
+                <Input type="number" value={laserForm.energyLevel} onChange={e => setLaserForm(p => ({ ...p, energyLevel: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>النبضة (ms)</Label>
+                <Input type="number" value={laserForm.pulseDuration} onChange={e => setLaserForm(p => ({ ...p, pulseDuration: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>البقعة (mm)</Label>
+                <Input type="number" value={laserForm.spotSize} onChange={e => setLaserForm(p => ({ ...p, spotSize: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>طريقة التبريد</Label>
+                <Select value={laserForm.freezeMethod} onValueChange={v => setLaserForm(p => ({ ...p, freezeMethod: v }))}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>
+                    {['DCC', 'TLC', 'Sapphire', 'Cryogen', 'Air Cooling'].map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>عدد النبضات</Label>
+                <Input type="number" value={laserForm.numPulses} onChange={e => setLaserForm(p => ({ ...p, numPulses: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+
             {laserPackages.length > 0 && (
               <div className="space-y-1.5">
                 <Label>الباقة</Label>
@@ -2163,6 +2487,9 @@ export default function Home() {
                 </Select>
               </div>
             )}
+
+            <Separator />
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>السعر</Label>
@@ -2187,11 +2514,11 @@ export default function Home() {
 
       {/* ─── EDIT LASER RECORD DIALOG ───────────────── */}
       <Dialog open={editLaserOpen} onOpenChange={setEditLaserOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit3 className="w-5 h-5 text-amber-500" />
-              تعديل سجل الليزر
+              تعديل حالة الليزر
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
@@ -2201,7 +2528,7 @@ export default function Home() {
                 <Select value={laserForm.bodyArea} onValueChange={v => setLaserForm(p => ({ ...p, bodyArea: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {['الوجه', 'الرقبة', 'الإبطين', 'الذراعين', 'الصدر', 'البطن', 'الظهر', 'البيكيني', 'الساقين', 'الشارب', 'الذقن'].map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                    {LASER_BODY_AREAS.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -2232,6 +2559,48 @@ export default function Home() {
                 </SelectContent>
               </Select>
             </div>
+
+            <Separator />
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">تقييم المريض</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>نوع البشرة (فيتز)</Label>
+                <Select value={laserForm.skinType} onValueChange={v => setLaserForm(p => ({ ...p, skinType: v }))}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>
+                    {SKIN_TYPES.map(t => <SelectItem key={t} value={t}>نوع {t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>لون الشعر</Label>
+                <Select value={laserForm.hairColor} onValueChange={v => setLaserForm(p => ({ ...p, hairColor: v }))}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>
+                    {HAIR_COLORS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <Separator />
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">إعدادات العلاج</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label>الطاقة (J/cm2)</Label>
+                <Input type="number" value={laserForm.energyLevel} onChange={e => setLaserForm(p => ({ ...p, energyLevel: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>النبضة (ms)</Label>
+                <Input type="number" value={laserForm.pulseDuration} onChange={e => setLaserForm(p => ({ ...p, pulseDuration: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>البقعة (mm)</Label>
+                <Input type="number" value={laserForm.spotSize} onChange={e => setLaserForm(p => ({ ...p, spotSize: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+
+            <Separator />
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>السعر</Label>
@@ -2274,7 +2643,7 @@ export default function Home() {
               <Select value={packageForm.bodyArea} onValueChange={v => setPackageForm(p => ({ ...p, bodyArea: v }))}>
                 <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
                 <SelectContent>
-                  {['الوجه', 'الرقبة', 'الإبطين', 'الذراعين', 'الصدر', 'البطن', 'الظهر', 'البيكيني', 'الساقين', 'الشارب', 'الذقن'].map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  {LASER_BODY_AREAS.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -2325,6 +2694,221 @@ export default function Home() {
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setEditPackageOpen(false)}>إلغاء</Button>
             <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleEditLaserPackage}>حفظ</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── ADD LASER SESSION DIALOG ────────────────── */}
+      <Dialog open={addLaserSessionOpen} onOpenChange={setAddLaserSessionOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-amber-500" />
+              تسجيل جلسة ليزر
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>رقم الجلسة</Label>
+                <Input value={laserSessionForm.sessionNumber} disabled className="bg-muted" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>تاريخ الجلسة *</Label>
+                <Input type="date" value={laserSessionForm.sessionDate} onChange={e => setLaserSessionForm(p => ({ ...p, sessionDate: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>تاريخ الجلسة التالية</Label>
+              <Input type="date" value={laserSessionForm.nextSessionDate} onChange={e => setLaserSessionForm(p => ({ ...p, nextSessionDate: e.target.value }))} dir="ltr" />
+            </div>
+
+            <Separator />
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">إعدادات العلاج</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label>الطاقة (J/cm2)</Label>
+                <Input type="number" value={laserSessionForm.energyLevel} onChange={e => setLaserSessionForm(p => ({ ...p, energyLevel: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>النبضة (ms)</Label>
+                <Input type="number" value={laserSessionForm.pulseDuration} onChange={e => setLaserSessionForm(p => ({ ...p, pulseDuration: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>البقعة (mm)</Label>
+                <Input type="number" value={laserSessionForm.spotSize} onChange={e => setLaserSessionForm(p => ({ ...p, spotSize: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>طريقة التبريد</Label>
+                <Select value={laserSessionForm.freezeMethod} onValueChange={v => setLaserSessionForm(p => ({ ...p, freezeMethod: v }))}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>
+                    {['DCC', 'TLC', 'Sapphire', 'Cryogen', 'Air Cooling'].map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>عدد النبضات</Label>
+                <Input type="number" value={laserSessionForm.numPulses} onChange={e => setLaserSessionForm(p => ({ ...p, numPulses: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+
+            <Separator />
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">متابعة الجلسة</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>مستوى الألم</Label>
+                <Select value={laserSessionForm.painLevel} onValueChange={v => setLaserSessionForm(p => ({ ...p, painLevel: v }))}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>
+                    {PAIN_LEVELS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>تفاعل البشرة</Label>
+                <Select value={laserSessionForm.skinReaction} onValueChange={v => setLaserSessionForm(p => ({ ...p, skinReaction: v }))}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>
+                    {SKIN_REACTIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>نسبة تقليل الشعر %</Label>
+                <Input type="number" min="0" max="100" value={laserSessionForm.hairReduction} onChange={e => setLaserSessionForm(p => ({ ...p, hairReduction: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>الحالة</Label>
+                <Select value={laserSessionForm.status} onValueChange={v => setLaserSessionForm(p => ({ ...p, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="completed">مكتملة</SelectItem>
+                    <SelectItem value="scheduled">مجدولة</SelectItem>
+                    <SelectItem value="cancelled">ملغية</SelectItem>
+                    <SelectItem value="no_show">لم يحضر</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <Separator />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>سعر الجلسة</Label>
+                <Input type="number" value={laserSessionForm.price} onChange={e => setLaserSessionForm(p => ({ ...p, price: e.target.value }))} placeholder="0" dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>المدفوع</Label>
+                <Input type="number" value={laserSessionForm.paidAmount} onChange={e => setLaserSessionForm(p => ({ ...p, paidAmount: e.target.value }))} placeholder="0" dir="ltr" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>ملاحظات الجلسة</Label>
+              <Textarea value={laserSessionForm.notes} onChange={e => setLaserSessionForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="ملاحظات عن الجلسة، رد فعل المريض..." />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setAddLaserSessionOpen(false)}>إلغاء</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreateLaserSession}>تسجيل</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── EDIT LASER SESSION DIALOG ───────────────── */}
+      <Dialog open={editLaserSessionOpen} onOpenChange={setEditLaserSessionOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit3 className="w-5 h-5 text-amber-500" />
+              تعديل الجلسة
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>تاريخ الجلسة</Label>
+                <Input type="date" value={laserSessionForm.sessionDate} onChange={e => setLaserSessionForm(p => ({ ...p, sessionDate: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>الجلسة التالية</Label>
+                <Input type="date" value={laserSessionForm.nextSessionDate} onChange={e => setLaserSessionForm(p => ({ ...p, nextSessionDate: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label>الطاقة (J/cm2)</Label>
+                <Input type="number" value={laserSessionForm.energyLevel} onChange={e => setLaserSessionForm(p => ({ ...p, energyLevel: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>النبضة (ms)</Label>
+                <Input type="number" value={laserSessionForm.pulseDuration} onChange={e => setLaserSessionForm(p => ({ ...p, pulseDuration: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>البقعة (mm)</Label>
+                <Input type="number" value={laserSessionForm.spotSize} onChange={e => setLaserSessionForm(p => ({ ...p, spotSize: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>مستوى الألم</Label>
+                <Select value={laserSessionForm.painLevel} onValueChange={v => setLaserSessionForm(p => ({ ...p, painLevel: v }))}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>
+                    {PAIN_LEVELS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>تفاعل البشرة</Label>
+                <Select value={laserSessionForm.skinReaction} onValueChange={v => setLaserSessionForm(p => ({ ...p, skinReaction: v }))}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>
+                    {SKIN_REACTIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>نسبة تقليل الشعر %</Label>
+                <Input type="number" min="0" max="100" value={laserSessionForm.hairReduction} onChange={e => setLaserSessionForm(p => ({ ...p, hairReduction: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>الحالة</Label>
+                <Select value={laserSessionForm.status} onValueChange={v => setLaserSessionForm(p => ({ ...p, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="completed">مكتملة</SelectItem>
+                    <SelectItem value="scheduled">مجدولة</SelectItem>
+                    <SelectItem value="cancelled">ملغية</SelectItem>
+                    <SelectItem value="no_show">لم يحضر</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>سعر الجلسة</Label>
+                <Input type="number" value={laserSessionForm.price} onChange={e => setLaserSessionForm(p => ({ ...p, price: e.target.value }))} dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>المدفوع</Label>
+                <Input type="number" value={laserSessionForm.paidAmount} onChange={e => setLaserSessionForm(p => ({ ...p, paidAmount: e.target.value }))} dir="ltr" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>ملاحظات</Label>
+              <Textarea value={laserSessionForm.notes} onChange={e => setLaserSessionForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setEditLaserSessionOpen(false)}>إلغاء</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleEditLaserSession}>حفظ</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -4431,138 +5015,647 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
 }
 
 // ═══════════════════════════════════════════════════════════════
-// LASER SECTION
+// LASER SECTION - Comprehensive Module
 // ═══════════════════════════════════════════════════════════════
-function LaserSection({ records, packages, loading, patients, onAddRecord, onEditRecord, onDeleteRecord, onAddPackage, onEditPackage, onDeletePackage, onRefresh }: any) {
+function LaserSection({ records, packages, loading, patients, laserView, setLaserView, selectedLaserCase, setSelectedLaserCase, laserStats, laserStatsLoading, laserSettings, setLaserSettings, laserSettingsLoading, onSaveSettings, onAddRecord, onEditRecord, onDeleteRecord, onOpenCaseDetail, onAddPackage, onEditPackage, onDeletePackage, onAddSession, onEditSession, onDeleteSession, onRefresh }: any) {
   const [laserSearch, setLaserSearch] = useState('')
-  const [statusFilter, setLaserFilter] = useState('')
-  const [showPackages, setShowPackages] = useState(false)
+  const [statusFilter, setLaserStatusFilter] = useState('')
 
   const filtered = records.filter((r: any) => {
     const patient = patients.find((p: any) => p.id === r.patientId)
-    const matchSearch = !laserSearch || patient?.name?.includes(laserSearch) || r.bodyArea?.includes(laserSearch)
+    const matchSearch = !laserSearch || patient?.name?.includes(laserSearch) || (LASER_BODY_AREA_LABELS[r.bodyArea] || r.bodyArea)?.includes(laserSearch)
     const matchStatus = !statusFilter || r.status === statusFilter
     return matchSearch && matchStatus
   })
 
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="p-3">
-          <div className="flex flex-wrap gap-2">
-            <div className="flex-1 min-w-[140px]">
-              <Input placeholder="بحث بالاسم أو المنطقة..." value={laserSearch} onChange={e => setLaserSearch(e.target.value)} className="h-9 text-sm pr-9" />
-            </div>
-            <div className="min-w-[120px]">
-              <Select value={statusFilter} onValueChange={v => setLaserFilter(v === 'all' ? '' : v)}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="الكل" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">الكل</SelectItem>
-                  <SelectItem value="active">نشط</SelectItem>
-                  <SelectItem value="completed">مكتمل</SelectItem>
-                  <SelectItem value="paused">متوقف</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button variant="outline" size="icon" className="h-9" onClick={onRefresh}><RefreshCw className="w-4 h-4" /></Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 h-9" onClick={onAddRecord}><Plus className="w-4 h-4 ml-1" />إضافة</Button>
-            <Button variant="outline" size="sm" className="h-9" onClick={() => setShowPackages(!showPackages)}>
-              <Zap className="w-4 h-4 ml-1" />
-              الباقات
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+  const getBodyAreaLabel = (val: string) => LASER_BODY_AREA_LABELS[val] || val
 
-      {/* Packages Sub-section */}
-      {showPackages && (
-        <Card className="border-amber-200 bg-amber-50/30">
+  // ═══ LASER CASES LIST VIEW ═══
+  if (laserView === 'cases') {
+    return (
+      <div className="space-y-4">
+        {/* Sub-navigation */}
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {[
+            { key: 'cases', label: 'الحالات', icon: <Zap className="w-4 h-4" /> },
+            { key: 'packages', label: 'الباقات', icon: <Sparkles className="w-4 h-4" /> },
+            { key: 'stats', label: 'الإحصائيات', icon: <BarChart3 className="w-4 h-4" /> },
+            { key: 'settings', label: 'الإعدادات', icon: <Settings className="w-4 h-4" /> },
+          ].map(item => (
+            <Button key={item.key} variant={laserView === item.key ? 'default' : 'outline'} size="sm" className="h-9 text-xs whitespace-nowrap" onClick={() => setLaserView(item.key)}>
+              {item.icon}<span className="mr-1">{item.label}</span>
+            </Button>
+          ))}
+        </div>
+
+        {/* Quick stats row */}
+        {laserStats?.summary && (
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: 'نشط', value: laserStats.summary.activeRecords, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+              { label: 'مكتمل', value: laserStats.summary.completedRecords, color: 'text-blue-600', bg: 'bg-blue-50' },
+              { label: 'الإيرادات', value: formatCurrency(laserStats.summary.totalRevenue), color: 'text-amber-600', bg: 'bg-amber-50' },
+              { label: 'الجلسات', value: laserStats.summary.totalSessionsCompleted, color: 'text-purple-600', bg: 'bg-purple-50' },
+            ].map(s => (
+              <Card key={s.label} className={s.bg}>
+                <CardContent className="p-3 text-center">
+                  <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
+                  <p className="text-xs text-muted-foreground">{s.label}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Filters */}
+        <Card>
+          <CardContent className="p-3">
+            <div className="flex flex-wrap gap-2">
+              <div className="flex-1 min-w-[140px]">
+                <Input placeholder="بحث بالاسم أو المنطقة..." value={laserSearch} onChange={e => setLaserSearch(e.target.value)} className="h-9 text-sm" />
+              </div>
+              <div className="min-w-[120px]">
+                <Select value={statusFilter} onValueChange={v => setLaserStatusFilter(v === 'all' ? '' : v)}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="الكل" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">الكل</SelectItem>
+                    <SelectItem value="active">نشط</SelectItem>
+                    <SelectItem value="completed">مكتمل</SelectItem>
+                    <SelectItem value="paused">متوقف</SelectItem>
+                    <SelectItem value="cancelled">ملغي</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" size="icon" className="h-9" onClick={onRefresh}><RefreshCw className="w-4 h-4" /></Button>
+              <Button className="bg-gradient-to-l from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 h-9 text-white shadow-sm" onClick={onAddRecord}>
+                <Plus className="w-4 h-4 ml-1" />حالة جديدة
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Cases List */}
+        {loading ? (
+          <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
+        ) : filtered.length === 0 ? (
+          <EmptyState icon={<Zap className="w-12 h-12" />} title="لا توجد حالات ليزر" description="لم يتم تسجيل أي حالة ليزر بعد" action={onAddRecord} actionLabel="إضافة حالة ليزر" />
+        ) : (
+          <div className="space-y-2 max-h-[calc(100vh-380px)] overflow-y-auto">
+            {filtered.map((r: any) => {
+              const patient = patients.find((p: any) => p.id === r.patientId)
+              const progress = Math.min(((r.completedSessions || 0) / (r.totalSessions || 1)) * 100, 100)
+              return (
+                <Card key={r.id} className="hover:shadow-md transition-shadow cursor-pointer border-l-4" style={{ borderLeftColor: r.status === 'active' ? '#10b981' : r.status === 'completed' ? '#3b82f6' : r.status === 'paused' ? '#f97316' : '#ef4444' }}>
+                  <CardContent className="p-4" onClick={() => onOpenCaseDetail(r)}>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                            {patient?.name?.charAt(0) || '?'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{patient?.name || '—'}</p>
+                            <p className="text-xs text-muted-foreground">{patient?.phone || ''}</p>
+                          </div>
+                          <Badge variant="secondary" className={
+                            r.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                            r.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                            r.status === 'paused' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
+                          } style={{ fontSize: '10px' }}>
+                            {r.status === 'active' ? 'نشط' : r.status === 'completed' ? 'مكتمل' : r.status === 'paused' ? 'متوقف' : 'ملغي'}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditRecord(r)}><Edit3 className="w-3.5 h-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => onDeleteRecord(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                      <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50 text-xs">{getBodyAreaLabel(r.bodyArea)}</Badge>
+                      {r.skinType && <Badge variant="outline" className="text-xs">فيتز {r.skinType}</Badge>}
+                      <span>{formatDate(r.sessionDate)}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className={`h-2 rounded-full transition-all ${progress >= 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ width: `${progress}%` }} />
+                        </div>
+                      </div>
+                      <span className="text-xs font-medium">{r.completedSessions || 0}/{r.totalSessions}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs mt-2">
+                      {r.price && (
+                        <div className="flex items-center gap-3">
+                          <span className="text-emerald-600 font-medium">{formatCurrency(r.price)}</span>
+                          <span className="text-blue-600">مدفوع {formatCurrency(r.paidAmount)}</span>
+                        </div>
+                      )}
+                      {r.nextSessionDate && <span className="text-blue-600">القادمة: {formatDate(r.nextSessionDate)}</span>}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ═══ LASER CASE DETAIL VIEW ═══
+  if (laserView === 'detail' && selectedLaserCase) {
+    const r = selectedLaserCase
+    const patient = r.patient
+    const progress = Math.min(((r.completedSessions || 0) / (r.totalSessions || 1)) * 100, 100)
+    const remaining = (r.price || 0) - (r.paidAmount || 0)
+    const sessions = r.laserSessions || []
+
+    return (
+      <div className="space-y-4">
+        {/* Back + Header */}
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => { setLaserView('cases'); setSelectedLaserCase(null) }}>
+            <ChevronRight className="w-4 h-4" />رجوع
+          </Button>
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <Zap className="w-5 h-5 text-amber-500" />
+            ملف حالة الليزر
+          </h3>
+        </div>
+
+        {/* Patient info card */}
+        <Card className="bg-gradient-to-l from-amber-50 to-orange-50 border-amber-200">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                {patient?.name?.charAt(0) || '?'}
+              </div>
+              <div className="flex-1">
+                <h4 className="text-lg font-bold">{patient?.name || '—'}</h4>
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mt-1">
+                  {patient?.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{patient.phone}</span>}
+                  {patient?.age && <span>{patient.age} سنة</span>}
+                  {patient?.gender && <span>{patient.gender}</span>}
+                </div>
+              </div>
+              <Badge variant="secondary" className={
+                r.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                r.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                r.status === 'paused' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
+              } style={{ fontSize: '13px', padding: '6px 12px' }}>
+                {r.status === 'active' ? 'نشط' : r.status === 'completed' ? 'مكتمل' : r.status === 'paused' ? 'متوقف' : 'ملغي'}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Treatment info */}
+        <div className="grid grid-cols-2 gap-3">
+          <Card>
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground mb-1">منطقة العلاج</p>
+              <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50">{getBodyAreaLabel(r.bodyArea)}</Badge>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground mb-1">تطور العلاج</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-gray-200 rounded-full h-2.5">
+                  <div className={`h-2.5 rounded-full transition-all ${progress >= 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ width: `${progress}%` }} />
+                </div>
+                <span className="text-sm font-bold">{r.completedSessions || 0}/{r.totalSessions}</span>
+              </div>
+            </CardContent>
+          </Card>
+          {r.skinType && (
+            <Card>
+              <CardContent className="p-3">
+                <p className="text-xs text-muted-foreground mb-1">نوع البشرة (فيتز)</p>
+                <p className="text-sm font-medium">نوع {r.skinType}</p>
+              </CardContent>
+            </Card>
+          )}
+          {r.hairColor && (
+            <Card>
+              <CardContent className="p-3">
+                <p className="text-xs text-muted-foreground mb-1">لون الشعر</p>
+                <p className="text-sm font-medium">{r.hairColor}</p>
+              </CardContent>
+            </Card>
+          )}
+          {r.machineUsed && (
+            <Card>
+              <CardContent className="p-3">
+                <p className="text-xs text-muted-foreground mb-1">الجهاز المستخدم</p>
+                <p className="text-sm font-medium">{r.machineUsed}</p>
+              </CardContent>
+            </Card>
+          )}
+          {r.package && (
+            <Card className="border-amber-200 bg-amber-50/30">
+              <CardContent className="p-3">
+                <p className="text-xs text-muted-foreground mb-1">الباقة</p>
+                <p className="text-sm font-medium">{r.package.name}</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Financial summary */}
+        <Card>
+          <CardContent className="p-4">
+            <h4 className="text-sm font-bold mb-3 flex items-center gap-2"><Wallet className="w-4 h-4 text-emerald-600" />الملخص المالي</h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-2 bg-emerald-50 rounded-lg">
+                <p className="text-xs text-muted-foreground">السعر الإجمالي</p>
+                <p className="text-sm font-bold text-emerald-600">{formatCurrency(r.price)}</p>
+              </div>
+              <div className="text-center p-2 bg-blue-50 rounded-lg">
+                <p className="text-xs text-muted-foreground">المدفوع</p>
+                <p className="text-sm font-bold text-blue-600">{formatCurrency(r.paidAmount)}</p>
+              </div>
+              <div className="text-center p-2 bg-red-50 rounded-lg">
+                <p className="text-xs text-muted-foreground">المتبقي</p>
+                <p className={`text-sm font-bold ${remaining > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(remaining)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Sessions history */}
+        <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" />باقات الليزر</CardTitle>
-              <Button size="sm" onClick={onAddPackage}><Plus className="w-4 h-4 ml-1" />باقة جديدة</Button>
+              <CardTitle className="text-sm flex items-center gap-2"><Clock className="w-4 h-4" />سجل الجلسات</CardTitle>
+              {r.status === 'active' && (
+                <Button size="sm" className="bg-gradient-to-l from-amber-500 to-orange-600 text-white text-xs" onClick={onAddSession}>
+                  <Plus className="w-3.5 h-3.5 ml-1" />تسجيل جلسة
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
-            {packages.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-3">لا توجد باقات</p>
+            {sessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">لم يتم تسجيل أي جلسة بعد</p>
             ) : (
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {packages.map((pkg: any) => (
-                  <div key={pkg.id} className="flex items-center justify-between p-2 bg-white rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium">{pkg.name}</p>
-                      <p className="text-xs text-muted-foreground">{pkg.bodyArea} · {pkg.sessions} جلسة</p>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {sessions.map((s: any, idx: number) => (
+                  <div key={s.id} className="border rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-100 to-orange-200 flex items-center justify-center text-amber-700 font-bold text-sm shrink-0">
+                          {s.sessionNumber || idx + 1}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">جلسة {s.sessionNumber || idx + 1}</p>
+                          <p className="text-xs text-muted-foreground">{formatDate(s.sessionDate)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEditSession(s)}><Edit3 className="w-3 h-3" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => onDeleteSession(s.id)}><Trash2 className="w-3 h-3" /></Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="bg-amber-100 text-amber-700">{formatCurrency(pkg.price)}</Badge>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEditPackage(pkg)}><Edit3 className="w-3 h-3" /></Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => onDeletePackage(pkg.id)}><Trash2 className="w-3 h-3" /></Button>
+                    <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                      {s.energyLevel && <Badge variant="outline" className="text-xs"><Thermometer className="w-3 h-3 ml-1" />طاقة {s.energyLevel}</Badge>}
+                      {s.pulseDuration && <Badge variant="outline" className="text-xs"><TimerReset className="w-3 h-3 ml-1" />نبضة {s.pulseDuration}</Badge>}
+                      {s.spotSize && <Badge variant="outline" className="text-xs"><Target className="w-3 h-3 ml-1" />بقعة {s.spotSize}</Badge>}
+                      {s.freezeMethod && <Badge variant="outline" className="text-xs"><Flame className="w-3 h-3 ml-1" />{s.freezeMethod}</Badge>}
+                      {s.painLevel !== null && s.painLevel !== undefined && <Badge variant="outline" className="text-xs">ألم: {PAIN_LEVELS[s.painLevel] || s.painLevel}</Badge>}
+                      {s.skinReaction && <Badge variant="outline" className="text-xs">تفاعل: {s.skinReaction}</Badge>}
+                      {s.hairReduction && <Badge variant="outline" className="text-xs">تقليل شعر: {s.hairReduction}%</Badge>}
                     </div>
+                    {s.notes && <p className="text-xs text-muted-foreground mt-2 border-t pt-2">{s.notes}</p>}
+                    {s.nextSessionDate && <p className="text-xs text-blue-600 mt-1">الجلسة التالية: {formatDate(s.nextSessionDate)}</p>}
                   </div>
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
-      )}
 
-      {/* Records List */}
-      {loading ? (
-        <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
-      ) : filtered.length === 0 ? (
-        <EmptyState icon={<Zap className="w-12 h-12" />} title="لا توجد سجلات ليزر" description="لم يتم تسجيل أي سجل ليزر بعد" action={onAddRecord} actionLabel="إضافة سجل ليزر" />
-      ) : (
-        <div className="space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto">
-          {filtered.map((r: any) => {
-            const patient = patients.find((p: any) => p.id === r.patientId)
-            const progress = Math.min(((r.completedSessions || 0) / (r.totalSessions || 1)) * 100, 100)
-            return (
-              <Card key={r.id} className="hover:shadow-sm">
+        {/* Case notes */}
+        {r.notes && (
+          <Card>
+            <CardContent className="p-4">
+              <h4 className="text-sm font-bold mb-2 flex items-center gap-2"><FileText className="w-4 h-4" />ملاحظات الحالة</h4>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{r.notes}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => onEditRecord(r)}>
+            <Edit3 className="w-4 h-4 ml-1" />تعديل الحالة
+          </Button>
+          <Button variant="outline" className="text-red-600" onClick={() => onDeleteRecord(r.id)}>
+            <Trash2 className="w-4 h-4 ml-1" />حذف
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // ═══ PACKAGES VIEW ═══
+  if (laserView === 'packages') {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex gap-2 overflow-x-auto">
+            {[
+              { key: 'cases', label: 'الحالات', icon: <Zap className="w-4 h-4" /> },
+              { key: 'packages', label: 'الباقات', icon: <Sparkles className="w-4 h-4" /> },
+              { key: 'stats', label: 'الإحصائيات', icon: <BarChart3 className="w-4 h-4" /> },
+              { key: 'settings', label: 'الإعدادات', icon: <Settings className="w-4 h-4" /> },
+            ].map(item => (
+              <Button key={item.key} variant={laserView === item.key ? 'default' : 'outline'} size="sm" className="h-9 text-xs whitespace-nowrap" onClick={() => setLaserView(item.key)}>
+                {item.icon}<span className="mr-1">{item.label}</span>
+              </Button>
+            ))}
+          </div>
+          <Button size="sm" className="bg-gradient-to-l from-amber-500 to-orange-600 text-white" onClick={onAddPackage}>
+            <Plus className="w-4 h-4 ml-1" />باقة جديدة
+          </Button>
+        </div>
+
+        {packages.length === 0 ? (
+          <EmptyState icon={<Sparkles className="w-12 h-12" />} title="لا توجد باقات" description="أنشئ باقات ليزر لتسهيل إدارة الحالات" action={onAddPackage} actionLabel="إضافة باقة" />
+        ) : (
+          <div className="grid gap-3">
+            {packages.map((pkg: any) => (
+              <Card key={pkg.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium truncate">{patient?.name || '—'}</p>
-                        <Badge variant="secondary" className={
-                          r.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                          r.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                          r.status === 'paused' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
-                        }>
-                          {r.status === 'active' ? 'نشط' : r.status === 'completed' ? 'مكتمل' : r.status === 'paused' ? 'متوقف' : 'ملغي'}
-                        </Badge>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-100 to-orange-200 flex items-center justify-center">
+                        <Sparkles className="w-6 h-6 text-amber-600" />
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-amber-500" />{r.bodyArea}</span>
-                        <span>{formatDate(r.sessionDate)}</span>
+                      <div>
+                        <h4 className="font-medium">{pkg.name}</h4>
+                        <p className="text-xs text-muted-foreground">{pkg.description || ''}</p>
+                        <div className="flex gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">{getBodyAreaLabel(pkg.bodyArea)}</Badge>
+                          <Badge variant="outline" className="text-xs">{pkg.sessions} جلسة</Badge>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditRecord(r)}><Edit3 className="w-3.5 h-3.5" /></Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => onDeleteRecord(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-bold text-emerald-600">{formatCurrency(pkg.price)}</span>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditPackage(pkg)}><Edit3 className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => onDeletePackage(pkg.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                    <div className={`h-2.5 rounded-full transition-all ${progress >= 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ width: `${progress}%` }} />
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{r.completedSessions || 0} / {r.totalSessions} جلسة</span>
-                    {r.price && (
-                      <div className="flex items-center gap-3">
-                        <span className="text-emerald-600 font-medium">{formatCurrency(r.price)}</span>
-                        <span className="text-blue-600">{formatCurrency(r.paidAmount)}</span>
-                      </div>
-                    )}
-                  </div>
-                  {r.nextSessionDate && <p className="text-xs text-blue-600 mt-1">الجلسة القادمة: {formatDate(r.nextSessionDate)}</p>}
                 </CardContent>
               </Card>
-            )
-          })}
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ═══ STATISTICS VIEW ═══
+  if (laserView === 'stats') {
+    const s = laserStats?.summary
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-2 overflow-x-auto">
+          {[
+            { key: 'cases', label: 'الحالات', icon: <Zap className="w-4 h-4" /> },
+            { key: 'packages', label: 'الباقات', icon: <Sparkles className="w-4 h-4" /> },
+            { key: 'stats', label: 'الإحصائيات', icon: <BarChart3 className="w-4 h-4" /> },
+            { key: 'settings', label: 'الإعدادات', icon: <Settings className="w-4 h-4" /> },
+          ].map(item => (
+            <Button key={item.key} variant={laserView === item.key ? 'default' : 'outline'} size="sm" className="h-9 text-xs whitespace-nowrap" onClick={() => setLaserView(item.key)}>
+              {item.icon}<span className="mr-1">{item.label}</span>
+            </Button>
+          ))}
         </div>
-      )}
-    </div>
-  )
+
+        {laserStatsLoading ? (
+          <div className="space-y-3">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+        ) : !laserStats ? (
+          <EmptyState icon={<BarChart3 className="w-12 h-12" />} title="لا توجد إحصائيات" description="سيتم عرض الإحصائيات عند توفر بيانات كافية" />
+        ) : (
+          <>
+            {/* Summary Grid */}
+            <div className="grid grid-cols-3 gap-3">
+              <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
+                <CardContent className="p-3 text-center">
+                  <p className="text-2xl font-bold text-emerald-600">{s?.totalRecords || 0}</p>
+                  <p className="text-xs text-muted-foreground">إجمالي الحالات</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                <CardContent className="p-3 text-center">
+                  <p className="text-2xl font-bold text-blue-600">{s?.activeRecords || 0}</p>
+                  <p className="text-xs text-muted-foreground">حالات نشطة</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+                <CardContent className="p-3 text-center">
+                  <p className="text-2xl font-bold text-purple-600">{s?.uniquePatients || 0}</p>
+                  <p className="text-xs text-muted-foreground">مريض فريد</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
+                <CardContent className="p-3 text-center">
+                  <p className="text-xl font-bold text-amber-600">{formatCurrency(s?.totalRevenue)}</p>
+                  <p className="text-xs text-muted-foreground">إجمالي الإيرادات</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
+                <CardContent className="p-3 text-center">
+                  <p className="text-xl font-bold text-red-600">{formatCurrency(s?.remainingAmount)}</p>
+                  <p className="text-xs text-muted-foreground">مبلغ متبقي</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-teal-50 to-teal-100 border-teal-200">
+                <CardContent className="p-3 text-center">
+                  <p className="text-2xl font-bold text-teal-600">{s?.totalSessionsCompleted || 0}</p>
+                  <p className="text-xs text-muted-foreground">جلسات مكتملة</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Gender */}
+            <Card>
+              <CardContent className="p-4">
+                <h4 className="text-sm font-bold mb-3">توزيع الجنس</h4>
+                <div className="flex gap-4">
+                  <div className="flex-1 text-center p-3 bg-blue-50 rounded-lg">
+                    <p className="text-xl font-bold text-blue-600">{s?.femaleCount || 0}</p>
+                    <p className="text-xs text-muted-foreground">إناث</p>
+                  </div>
+                  <div className="flex-1 text-center p-3 bg-sky-50 rounded-lg">
+                    <p className="text-xl font-bold text-sky-600">{s?.maleCount || 0}</p>
+                    <p className="text-xs text-muted-foreground">ذكور</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Retention */}
+            <Card>
+              <CardContent className="p-4">
+                <h4 className="text-sm font-bold mb-3">مؤشرات الأداء</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center p-2 bg-emerald-50 rounded-lg">
+                    <p className="text-lg font-bold text-emerald-600">{s?.retentionRate || 0}%</p>
+                    <p className="text-xs text-muted-foreground">معدل الاحتفاظ</p>
+                  </div>
+                  <div className="text-center p-2 bg-amber-50 rounded-lg">
+                    <p className="text-lg font-bold text-amber-600">{s?.avgSessionsPerCase || 0}</p>
+                    <p className="text-xs text-muted-foreground">متوسط جلسات/حالة</p>
+                  </div>
+                  <div className="text-center p-2 bg-blue-50 rounded-lg">
+                    <p className="text-lg font-bold text-blue-600">{s?.upcomingSessionsCount || 0}</p>
+                    <p className="text-xs text-muted-foreground">جلسات قادمة</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Body area distribution */}
+            {laserStats.bodyAreaStats?.length > 0 && (
+              <Card>
+                <CardContent className="p-4">
+                  <h4 className="text-sm font-bold mb-3">أكثر مناطق الجسم طلبا</h4>
+                  <div className="space-y-2">
+                    {laserStats.bodyAreaStats.slice(0, 8).map((ba: any) => (
+                      <div key={ba.area} className="flex items-center gap-3">
+                        <span className="text-xs w-32 truncate">{getBodyAreaLabel(ba.area)}</span>
+                        <div className="flex-1 bg-gray-200 rounded-full h-3">
+                          <div className="h-3 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all" style={{ width: `${ba.percentage}%` }} />
+                        </div>
+                        <span className="text-xs font-medium w-8 text-left">{ba.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+      </div>
+    )
+  }
+
+  // ═══ SETTINGS VIEW ═══
+  if (laserView === 'settings') {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex gap-2 overflow-x-auto">
+            {[
+              { key: 'cases', label: 'الحالات', icon: <Zap className="w-4 h-4" /> },
+              { key: 'packages', label: 'الباقات', icon: <Sparkles className="w-4 h-4" /> },
+              { key: 'stats', label: 'الإحصائيات', icon: <BarChart3 className="w-4 h-4" /> },
+              { key: 'settings', label: 'الإعدادات', icon: <Settings className="w-4 h-4" /> },
+            ].map(item => (
+              <Button key={item.key} variant={laserView === item.key ? 'default' : 'outline'} size="sm" className="h-9 text-xs whitespace-nowrap" onClick={() => setLaserView(item.key)}>
+                {item.icon}<span className="mr-1">{item.label}</span>
+              </Button>
+            ))}
+          </div>
+          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onSaveSettings}>
+            <Save className="w-4 h-4 ml-1" />حفظ
+          </Button>
+        </div>
+
+        {laserSettingsLoading ? (
+          <div className="space-y-3">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+        ) : (
+          <>
+            {/* Machine Settings */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2"><Settings className="w-4 h-4" />إعدادات الجهاز</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">الجهاز الافتراضي</Label>
+                    <Input value={laserSettings.default_machine || ''} onChange={e => setLaserSettings(p => ({ ...p, default_machine: e.target.value }))} placeholder="اسم الجهاز" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">طريقة التبريد الافتراضية</Label>
+                    <Select value={laserSettings.default_freeze || ''} onValueChange={v => setLaserSettings(p => ({ ...p, default_freeze: v }))}>
+                      <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                      <SelectContent>
+                        {['DCC', 'TLC', 'Sapphire', 'Cryogen', 'Air Cooling'].map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">الطاقة الافتراضية (J/cm2)</Label>
+                    <Input type="number" value={laserSettings.default_energy || ''} onChange={e => setLaserSettings(p => ({ ...p, default_energy: e.target.value }))} dir="ltr" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">مدة النبضة الافتراضية (ms)</Label>
+                    <Input type="number" value={laserSettings.default_pulse || ''} onChange={e => setLaserSettings(p => ({ ...p, default_pulse: e.target.value }))} dir="ltr" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">حجم البقعة الافتراضي (mm)</Label>
+                    <Input type="number" value={laserSettings.default_spot_size || ''} onChange={e => setLaserSettings(p => ({ ...p, default_spot_size: e.target.value }))} dir="ltr" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Scheduling */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2"><CalendarDays className="w-4 h-4" />إعدادات المواعيد</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">الفترة بين الجلسات (أيام)</Label>
+                    <Input type="number" value={laserSettings.session_interval_days || '30'} onChange={e => setLaserSettings(p => ({ ...p, session_interval_days: e.target.value }))} dir="ltr" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">عدد الجلسات الافتراضي</Label>
+                    <Input type="number" value={laserSettings.default_total_sessions || '8'} onChange={e => setLaserSettings(p => ({ ...p, default_total_sessions: e.target.value }))} dir="ltr" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">تذكير قبل الجلسة (أيام)</Label>
+                  <Input type="number" value={laserSettings.reminder_days_before || '3'} onChange={e => setLaserSettings(p => ({ ...p, reminder_days_before: e.target.value }))} dir="ltr" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* General */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2"><Building2 className="w-4 h-4" />عام</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">اسم العيادة</Label>
+                    <Input value={laserSettings.clinic_name || ''} onChange={e => setLaserSettings(p => ({ ...p, clinic_name: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">العملة</Label>
+                    <Input value={laserSettings.currency || 'جنيه'} onChange={e => setLaserSettings(p => ({ ...p, currency: e.target.value }))} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  return null
 }
 
 // ═══════════════════════════════════════════════════════════════

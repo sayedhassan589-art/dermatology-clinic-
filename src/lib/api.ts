@@ -275,6 +275,46 @@ export function deleteLaserPackageAPI(id: string) {
   return fetchAPI<{ success: boolean }>(`/laser/packages/${id}`, { method: 'DELETE' });
 }
 
+// ─── Laser Sessions ─────────────────────────────────────────
+export function getLaserSessionsAPI(laserRecordId: string) {
+  return fetchAPI<{ sessions: any[] }>(`/laser/sessions${buildQuery({ laserRecordId })}`);
+}
+
+export function createLaserSessionAPI(data: any) {
+  return fetchAPI<{ session: any; updatedRecord: any }>('/laser/sessions', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateLaserSessionAPI(id: string, data: any) {
+  return fetchAPI<{ session: any }>(`/laser/sessions/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteLaserSessionAPI(id: string) {
+  return fetchAPI<{ success: boolean }>(`/laser/sessions/${id}`, { method: 'DELETE' });
+}
+
+// ─── Laser Settings ─────────────────────────────────────────
+export function getLaserSettingsAPI() {
+  return fetchAPI<{ settings: Record<string, any>; rawSettings: any[] }>('/laser/settings');
+}
+
+export function updateLaserSettingsAPI(settings: Record<string, any>) {
+  return fetchAPI<{ success: boolean; updated: string[] }>('/laser/settings', {
+    method: 'PUT',
+    body: JSON.stringify({ settings }),
+  });
+}
+
+// ─── Laser Stats ────────────────────────────────────────────
+export function getLaserStatsAPI(params?: { period?: string; dateFrom?: string; dateTo?: string }) {
+  return fetchAPI<any>(`/laser/stats${buildQuery(params as any)}`);
+}
+
 // ─── Finance ───────────────────────────────────────────────────
 export function getTransactionsAPI(params?: { type?: string; category?: string; dateFrom?: string; dateTo?: string }) {
   return fetchAPI<{ transactions: any[]; total: number }>(`/finance${buildQuery(params as any)}`);

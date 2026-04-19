@@ -18,7 +18,11 @@ export async function GET(req: NextRequest) {
     const [records, total] = await Promise.all([
       db.laserRecord.findMany({
         where,
-        include: { patient: { select: { id: true, name: true, phone: true } }, package: true },
+        include: {
+          patient: { select: { id: true, name: true, phone: true, gender: true, age: true } },
+          package: true,
+          laserSessions: { orderBy: { sessionNumber: 'asc' } },
+        },
         orderBy: { sessionDate: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -35,7 +39,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { patientId, packageId, bodyArea, totalSessions, sessionDate, nextSessionDate, status, notes, price, paidAmount, createdBy } = body
+    const { patientId, packageId, bodyArea, totalSessions, sessionDate, nextSessionDate, status, notes, price, paidAmount, createdBy, skinType, hairColor, skinSensitivity, energyLevel, pulseDuration, spotSize, machineUsed, freezeMethod, numPulses } = body
 
     if (!patientId || !bodyArea) {
       return NextResponse.json({ error: 'يرجى إدخال بيانات المريض ومنطقة الجسم' }, { status: 400 })
@@ -46,7 +50,8 @@ export async function POST(req: NextRequest) {
         patientId,
         packageId: packageId || null,
         bodyArea,
-        sessionNumber: body.sessionNumber || 1,
+        sessionNumber: 1,
+        completedSessions: 0,
         totalSessions: totalSessions || 8,
         sessionDate: new Date(sessionDate),
         nextSessionDate: nextSessionDate ? new Date(nextSessionDate) : null,
@@ -55,8 +60,17 @@ export async function POST(req: NextRequest) {
         price: price ? parseFloat(price) : null,
         paidAmount: paidAmount ? parseFloat(paidAmount) : 0,
         createdBy,
+        skinType: skinType || null,
+        hairColor: hairColor || null,
+        skinSensitivity: skinSensitivity || null,
+        energyLevel: energyLevel || null,
+        pulseDuration: pulseDuration || null,
+        spotSize: spotSize || null,
+        machineUsed: machineUsed || null,
+        freezeMethod: freezeMethod || null,
+        numPulses: numPulses ? parseInt(numPulses) : null,
       },
-      include: { patient: true, package: true },
+      include: { patient: true, package: true, laserSessions: true },
     })
 
     return NextResponse.json({ record }, { status: 201 })
