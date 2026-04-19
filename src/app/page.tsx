@@ -126,7 +126,7 @@ import {
   Zap,
   Wallet,
   MessageCircle,
-  Calendar,
+
   Moon,
   Sun,
   Timer,
@@ -243,7 +243,7 @@ type MainTab = 'dashboard' | 'patients' | 'visits' | 'sessions' | 'laser' | 'mor
 type SubView = 'list' | 'detail' | 'form'
 type PatientDetailTab = 'visits' | 'sessions' | 'notes' | 'alerts' | 'laser'
 type ReportSubTab = 'daily' | 'weekly' | 'monthly'
-type MoreSubTab = 'services' | 'alerts' | 'finance' | 'reports' | 'calendar' | 'settings'
+type MoreSubTab = 'services' | 'alerts' | 'finance' | 'reports' | 'settings'
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP COMPONENT
@@ -333,9 +333,8 @@ export default function Home() {
     if (typeof window !== 'undefined') return localStorage.getItem('derm-last-autosave')
     return null
   })
-  const [calendarMonth, setCalendarMonth] = useState(new Date())
 
-  // ─── Theme & Reports Password ───────────────────────────
+  // ─── Theme ───────────────────────────
   const [selectedTheme, setSelectedTheme] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('derm-theme') || 'teal'
@@ -350,9 +349,6 @@ export default function Home() {
       localStorage.setItem('derm-theme', themeId)
     }
   }, [])
-  const [reportsUnlocked, setReportsUnlocked] = useState(false)
-  const [reportsPassword, setReportsPassword] = useState('')
-  const [reportsPasswordOpen, setReportsPasswordOpen] = useState(false)
 
   // ─── Backup State ─────────────────────────────────────────
   const [backups, setBackups] = useState<any[]>([])
@@ -482,23 +478,6 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [isAuthenticated])
 
-  // Reports password check
-  const handleReportsAccess = () => {
-    if (reportsUnlocked) return
-    setReportsPasswordOpen(true)
-  }
-  const handleReportsPasswordSubmit = () => {
-    if (reportsPassword === '2137') {
-      setReportsUnlocked(true)
-      setReportsPasswordOpen(false)
-      setReportsPassword('')
-      toast.success('تم فتح التقارير بنجاح')
-    } else {
-      toast.error('كلمة السر غير صحيحة')
-      setReportsPassword('')
-    }
-  }
-
   // ─── Patient search debounce ──────────────────────────────
   useEffect(() => {
     if (isAuthenticated) {
@@ -582,12 +561,9 @@ export default function Home() {
       else if (moreSubTab === 'alerts') void clinic.fetchAlerts()
       else if (moreSubTab === 'finance') void fetchFinanceData()
       else if (moreSubTab === 'reports') {
-        handleReportsAccess()
-        if (reportsUnlocked) {
-          if (reportSubTab === 'daily') void clinic.fetchDailyReport()
-          else if (reportSubTab === 'weekly') void clinic.fetchWeeklyReport()
-          else void clinic.fetchMonthlyReport()
-        }
+        if (reportSubTab === 'daily') void clinic.fetchDailyReport()
+        else if (reportSubTab === 'weekly') void clinic.fetchWeeklyReport()
+        else void clinic.fetchMonthlyReport()
       }
     }
   }, [activeTab, reportSubTab, moreSubTab, visitDateFilter, visitTypeFilter, sessionDateFilter, sessionStatusFilter, isAuthenticated])
@@ -1276,7 +1252,7 @@ export default function Home() {
     { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="w-5 h-5" />, adminOnly: true },
     { id: 'patients', label: 'المرضى', icon: <Users className="w-5 h-5" /> },
     { id: 'visits', label: 'الزيارات', icon: <Stethoscope className="w-5 h-5" /> },
-    { id: 'sessions', label: 'الجلسات', icon: <CalendarDays className="w-5 h-5" /> },
+    { id: 'sessions', label: 'الجلسات', icon: <CalendarDays className="w-5 h-5" />, adminOnly: true },
     { id: 'laser', label: 'الليزر', icon: <Zap className="w-5 h-5" /> },
     { id: 'more', label: 'المزيد', icon: <MoreHorizontal className="w-5 h-5" />, adminOnly: true },
   ]
@@ -1517,19 +1493,12 @@ export default function Home() {
               weeklyReport={clinic.weeklyReport}
               monthlyReport={clinic.monthlyReport}
               reportsLoading={clinic.reportsLoading}
-              reportsUnlocked={reportsUnlocked}
-              onReportsPasswordOpen={() => setReportsPasswordOpen(true)}
               clinicServices={clinic.services}
               onRefreshReports={() => {
                 if (reportSubTab === 'daily') clinic.fetchDailyReport()
                 else if (reportSubTab === 'weekly') clinic.fetchWeeklyReport()
                 else clinic.fetchMonthlyReport()
               }}
-              // Calendar props
-              calendarMonth={calendarMonth}
-              onCalendarMonthChange={setCalendarMonth}
-              clinicVisits={clinic.visits}
-              clinicSessions={clinic.sessions}
               // Settings props
               darkMode={darkMode}
               onDarkModeToggle={() => setDarkMode(prev => !prev)}
@@ -2130,40 +2099,6 @@ export default function Home() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* ─── REPORTS PASSWORD DIALOG ──────────────── */}
-      <Dialog open={reportsPasswordOpen} onOpenChange={setReportsPasswordOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Lock className="w-5 h-5" />
-              كلمة سر التقارير
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>أدخل كلمة السر</Label>
-              <Input
-                type="password"
-                value={reportsPassword}
-                onChange={e => setReportsPassword(e.target.value)}
-                placeholder="••••"
-                onKeyDown={e => e.key === 'Enter' && handleReportsPasswordSubmit()}
-                className="h-12 text-center text-lg tracking-widest"
-                autoFocus
-                dir="ltr"
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setReportsPasswordOpen(false); setReportsPassword('') }}>إلغاء</Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleReportsPasswordSubmit} disabled={!reportsPassword}>
-                <Lock className="w-4 h-4 ml-1" />
-                دخول
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* ─── ADD LASER RECORD DIALOG ────────────────── */}
       <Dialog open={addLaserOpen} onOpenChange={setAddLaserOpen}>
@@ -3748,49 +3683,71 @@ function ReportsTab({ reportSubTab, onSubTabChange, dailyReport, weeklyReport, m
 // ═══════════════════════════════════════════════════════════════
 // MORE TAB
 // ═══════════════════════════════════════════════════════════════
-function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts, alertsLoading, onAddService, onEditService, onDeleteService, onAddAlert, onMarkAlertRead, onDeleteAlert, onRefreshServices, onRefreshAlerts, selectedTheme, onThemeChange, syncConnected, syncConnectionInfo, syncLastTime, backups, backupLoading, onCreateBackup, onImportBackup, onRestoreBackup, onDeleteBackup, transactions, financeSummary, financeLoading, onAddTransaction, onEditTransaction, onDeleteTransaction, onRefreshFinance, reportSubTab, onReportSubTabChange, dailyReport, weeklyReport, monthlyReport, reportsLoading, reportsUnlocked, onReportsPasswordOpen, clinicServices, onRefreshReports, calendarMonth, onCalendarMonthChange, clinicVisits, clinicSessions, darkMode, onDarkModeToggle, lastAutoSave }: any) {
+function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts, alertsLoading, onAddService, onEditService, onDeleteService, onAddAlert, onMarkAlertRead, onDeleteAlert, onRefreshServices, onRefreshAlerts, selectedTheme, onThemeChange, syncConnected, syncConnectionInfo, syncLastTime, backups, backupLoading, onCreateBackup, onImportBackup, onRestoreBackup, onDeleteBackup, transactions, financeSummary, financeLoading, onAddTransaction, onEditTransaction, onDeleteTransaction, onRefreshFinance, reportSubTab, onReportSubTabChange, dailyReport, weeklyReport, monthlyReport, reportsLoading, clinicServices, onRefreshReports, darkMode, onDarkModeToggle, lastAutoSave }: any) {
   return (
     <div className="space-y-4">
+      {/* Section Header */}
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md">
+          <MoreHorizontal className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold">المزيد</h2>
+          <p className="text-xs text-muted-foreground">إدارة وتقارير وإعدادات النظام</p>
+        </div>
+      </div>
+
       <Tabs value={moreSubTab} onValueChange={v => onSubTabChange(v as any)}>
-        <TabsList className="w-full grid grid-cols-6">
-          <TabsTrigger value="services">الخدمات</TabsTrigger>
-          <TabsTrigger value="alerts">التنبيهات</TabsTrigger>
-          <TabsTrigger value="finance">المالية</TabsTrigger>
-          <TabsTrigger value="reports">التقارير</TabsTrigger>
-          <TabsTrigger value="calendar">التقويم</TabsTrigger>
-          <TabsTrigger value="settings">الإعدادات</TabsTrigger>
+        <TabsList className="w-full h-auto p-1 bg-muted/50 rounded-2xl">
+          <TabsTrigger value="services" className="gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl text-xs py-2.5"><Syringe className="w-3.5 h-3.5" />الخدمات</TabsTrigger>
+          <TabsTrigger value="alerts" className="gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl text-xs py-2.5"><Bell className="w-3.5 h-3.5" />التنبيهات</TabsTrigger>
+          <TabsTrigger value="finance" className="gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl text-xs py-2.5"><Wallet className="w-3.5 h-3.5" />المالية</TabsTrigger>
+          <TabsTrigger value="reports" className="gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl text-xs py-2.5"><BarChart3 className="w-3.5 h-3.5" />التقارير</TabsTrigger>
+          <TabsTrigger value="settings" className="gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl text-xs py-2.5"><Settings className="w-3.5 h-3.5" />الإعدادات</TabsTrigger>
         </TabsList>
 
         {/* Services */}
         <TabsContent value="services" className="mt-4">
-          <div className="flex justify-end mb-3">
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={onRefreshServices}>
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onAddService}>
-                <Plus className="w-4 h-4 ml-1" />
-                إضافة خدمة
-              </Button>
-            </div>
-          </div>
-
-          {servicesLoading ? (
-            <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
-          ) : services.length === 0 ? (
-            <EmptyState icon={<Syringe className="w-10 h-10" />} title="لا توجد خدمات" description="أضف خدمات العيادة" action={onAddService} actionLabel="إضافة خدمة" />
-          ) : (
-            <div className="space-y-2">
-              {services.map((s: any) => (
-                <Card key={s.id} className="hover:shadow-sm">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{s.name}</p>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                          <span className="text-emerald-600 font-medium">{formatCurrency(s.price)}</span>
-                          {s.duration && <span>{s.duration} دقيقة</span>}
-                          {s.description && <span className="truncate max-w-[200px]">{s.description}</span>}
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                    <Syringe className="w-4 h-4 text-white" />
+                  </div>
+                  خدمات العيادة
+                </CardTitle>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={onRefreshServices} className="h-8">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8" onClick={onAddService}>
+                    <Plus className="w-3.5 h-3.5 ml-1" />
+                    إضافة خدمة
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {servicesLoading ? (
+                <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+              ) : services.length === 0 ? (
+                <EmptyState icon={<Syringe className="w-10 h-10" />} title="لا توجد خدمات" description="أضف خدمات العيادة" action={onAddService} actionLabel="إضافة خدمة" />
+              ) : (
+                <div className="space-y-2">
+                  {services.map((s: any) => (
+                    <div key={s.id} className="flex items-center justify-between p-3 bg-muted/40 rounded-xl hover:bg-muted/70 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                          <Syringe className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{s.name}</p>
+                          <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                            <span className="text-emerald-600 font-semibold">{formatCurrency(s.price)}</span>
+                            {s.duration && <span>{s.duration} دقيقة</span>}
+                            {s.description && <span className="truncate max-w-[200px]">{s.description}</span>}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
@@ -3802,67 +3759,79 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
                         </Button>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Alerts */}
         <TabsContent value="alerts" className="mt-4">
-          <div className="flex justify-end mb-3">
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={onRefreshAlerts}>
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onAddAlert}>
-                <Plus className="w-4 h-4 ml-1" />
-                إضافة تنبيه
-              </Button>
-            </div>
-          </div>
-
-          {alertsLoading ? (
-            <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
-          ) : alerts.length === 0 ? (
-            <EmptyState icon={<Bell className="w-10 h-10" />} title="لا توجد تنبيهات" description="أضف تنبيه جديد" action={onAddAlert} actionLabel="إضافة تنبيه" />
-          ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {alerts.map((a: any) => (
-                <Card key={a.id} className={!a.isRead ? 'border-amber-200 bg-amber-50/30' : 'hover:shadow-sm'}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          {!a.isRead && <span className="w-2 h-2 bg-amber-500 rounded-full shrink-0" />}
-                          <p className="font-medium truncate">{a.title}</p>
-                          <Badge variant="outline" className="text-[10px] shrink-0">
-                            {a.alertType === 'followup' ? 'متابعة' : a.alertType === 'payment' ? 'دفعة' : a.alertType === 'appointment' ? 'موعد' : 'تذكير'}
-                          </Badge>
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                    <Bell className="w-4 h-4 text-white" />
+                  </div>
+                  التنبيهات
+                  {alerts.filter((a: any) => !a.isRead).length > 0 && (
+                    <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0">{alerts.filter((a: any) => !a.isRead).length} جديد</Badge>
+                  )}
+                </CardTitle>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={onRefreshAlerts} className="h-8">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8" onClick={onAddAlert}>
+                    <Plus className="w-3.5 h-3.5 ml-1" />
+                    إضافة تنبيه
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {alertsLoading ? (
+                <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+              ) : alerts.length === 0 ? (
+                <EmptyState icon={<Bell className="w-10 h-10" />} title="لا توجد تنبيهات" description="أضف تنبيه جديد" action={onAddAlert} actionLabel="إضافة تنبيه" />
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {alerts.map((a: any) => (
+                    <div key={a.id} className={`p-3 rounded-xl transition-colors ${!a.isRead ? 'bg-amber-50 border border-amber-200' : 'bg-muted/40 hover:bg-muted/70'}`}>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            {!a.isRead && <span className="w-2 h-2 bg-amber-500 rounded-full shrink-0" />}
+                            <p className="font-medium text-sm truncate">{a.title}</p>
+                            <Badge variant="outline" className="text-[10px] shrink-0">
+                              {a.alertType === 'followup' ? 'متابعة' : a.alertType === 'payment' ? 'دفعة' : a.alertType === 'appointment' ? 'موعد' : 'تذكير'}
+                            </Badge>
+                          </div>
+                          {a.message && <p className="text-xs text-muted-foreground truncate">{a.message}</p>}
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            {a.patient?.name && <span>{a.patient.name} · </span>}
+                            {formatDate(a.alertDate)}
+                          </p>
                         </div>
-                        {a.message && <p className="text-sm text-muted-foreground truncate">{a.message}</p>}
-                        <p className="text-[10px] text-muted-foreground mt-1">
-                          {a.patient?.name && <span>{a.patient.name} • </span>}
-                          {formatDate(a.alertDate)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0 mr-2">
-                        {!a.isRead && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkAlertRead(a.id)} title="تحديد كمقروء">
-                            <Check className="w-3.5 h-3.5" />
+                        <div className="flex items-center gap-1 shrink-0 mr-2">
+                          {!a.isRead && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkAlertRead(a.id)} title="تحديد كمقروء">
+                              <Check className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => onDeleteAlert(a.id)}>
+                            <Trash2 className="w-3.5 h-3.5" />
                           </Button>
-                        )}
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => onDeleteAlert(a.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        </div>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Finance */}
@@ -3880,179 +3849,148 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
 
         {/* Reports */}
         <TabsContent value="reports" className="mt-4">
-          {reportsUnlocked ? (
-            <ReportsTab
-              reportSubTab={reportSubTab}
-              onSubTabChange={onReportSubTabChange}
-              dailyReport={dailyReport}
-              weeklyReport={weeklyReport}
-              monthlyReport={monthlyReport}
-              loading={reportsLoading}
-              services={clinicServices}
-              onRefresh={onRefreshReports}
-            />
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg mb-4">
-                <Lock className="w-10 h-10 text-white" />
-              </div>
-              <h2 className="text-xl font-bold mb-2">التقارير محمية</h2>
-              <p className="text-sm text-muted-foreground mb-4">أدخل كلمة السر للوصول للتقارير</p>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={onReportsPasswordOpen}>
-                <Lock className="w-4 h-4 ml-2" />
-                إدخال كلمة السر
-              </Button>
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Calendar */}
-        <TabsContent value="calendar" className="mt-4">
-          <CalendarSection
-            month={calendarMonth}
-            onMonthChange={onCalendarMonthChange}
-            visits={clinicVisits}
-            sessions={clinicSessions}
+          <ReportsTab
+            reportSubTab={reportSubTab}
+            onSubTabChange={onReportSubTabChange}
+            dailyReport={dailyReport}
+            weeklyReport={weeklyReport}
+            monthlyReport={monthlyReport}
+            loading={reportsLoading}
+            services={clinicServices}
+            onRefresh={onRefreshReports}
           />
         </TabsContent>
 
         {/* Settings */}
         <TabsContent value="settings" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Settings className="w-4 h-4" />
-                الإعدادات
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Sync Status */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  {syncConnected ? <Wifi className="w-5 h-5 text-emerald-600" /> : <WifiOff className="w-5 h-5 text-red-500" />}
-                  <p className="text-sm font-medium">حالة المزامنة</p>
+          <div className="space-y-4">
+            {/* Sync Status */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                    {syncConnected ? <Wifi className="w-4 h-4 text-white" /> : <WifiOff className="w-4 h-4 text-white" />}
+                  </div>
+                  حالة المزامنة
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className={`flex items-center gap-2 p-3 rounded-xl ${syncConnected ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                  <span className={`w-2.5 h-2.5 rounded-full ${syncConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-400'}`} />
+                  <span className="text-sm font-medium">{syncConnected ? 'متصل - المزامنة نشطة' : 'غير متصل'}</span>
+                  <Badge variant="secondary" className={`mr-auto text-[10px] ${syncConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                    {syncConnected ? 'WebSocket' : 'Polling'}
+                  </Badge>
                 </div>
-                <Card className={`border ${syncConnected ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50'}`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-3 h-3 rounded-full ${syncConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-400'}`} />
-                        <span className={`text-sm font-medium ${syncConnected ? 'text-emerald-700' : 'text-red-700'}`}>
-                          {syncConnected ? 'متصل - المزامنة نشطة' : 'غير متصل'}
-                        </span>
-                      </div>
-                      <Badge variant="secondary" className={syncConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
-                        {syncConnected ? 'WebSocket' : 'Polling'}
-                      </Badge>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>حالة الاتصال</span>
+                    <span className={syncConnected ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium'}>
+                      {syncConnectionInfo || 'جاري الاتصال...'}
+                    </span>
+                  </div>
+                  {syncLastTime && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>آخر مزامنة</span>
+                      <span>{formatDateTime(syncLastTime)}</span>
                     </div>
-                    <div className="space-y-2 text-xs">
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>حالة الاتصال</span>
-                        <span className={syncConnected ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium'}>
-                          {syncConnectionInfo || 'جاري الاتصال...'}
-                        </span>
-                      </div>
-                      {syncLastTime && (
-                        <div className="flex justify-between text-muted-foreground">
-                          <span>آخر مزامنة</span>
-                          <span>{formatDateTime(syncLastTime)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>آلية المزامنة</span>
-                        <span>{syncConnected ? 'Real-time (WebSocket)' : 'تلقائي كل 5 ثوان'}</span>
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-3 bg-white/60 rounded-lg p-2">
-                      💡 المزامنة تعمل تلقائياً. أي تعديل من أي جهاز سيظهر على جميع الأجهزة المتصلة بنفس الشبكة فوراً.
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Separator />
-
-              {/* Dark Mode */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  {darkMode ? <Moon className="w-5 h-5 text-indigo-500" /> : <Sun className="w-5 h-5 text-amber-500" />}
-                  <p className="text-sm font-medium">الوضع الليلي</p>
+                  )}
                 </div>
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <span className="text-sm">{darkMode ? 'مفعّل' : 'معطّل'}</span>
+              </CardContent>
+            </Card>
+
+            {/* Appearance */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                    <Palette className="w-4 h-4 text-white" />
+                  </div>
+                  المظهر
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Dark Mode */}
+                <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    {darkMode ? <Moon className="w-5 h-5 text-indigo-500" /> : <Sun className="w-5 h-5 text-amber-500" />}
+                    <div>
+                      <p className="text-sm font-medium">الوضع الليلي</p>
+                      <p className="text-[10px] text-muted-foreground">{darkMode ? 'مفعّل' : 'معطّل'}</p>
+                    </div>
+                  </div>
                   <Switch checked={darkMode} onCheckedChange={onDarkModeToggle} />
                 </div>
-              </div>
 
-              <Separator />
-
-              {/* Auto-save */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Save className="w-5 h-5 text-muted-foreground" />
-                  <p className="text-sm font-medium">الحفظ التلقائي</p>
+                {/* Theme Picker */}
+                <div>
+                  <p className="text-sm font-medium mb-3">لون التطبيق</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {COLOR_THEMES.map(theme => (
+                      <button
+                        key={theme.id}
+                        onClick={() => onThemeChange(theme.id)}
+                        className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                          selectedTheme === theme.id
+                            ? 'border-primary shadow-md scale-105'
+                            : 'border-transparent hover:border-border bg-muted/30'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${theme.primary} shadow-sm`} />
+                        <span className="text-[10px] font-medium">{theme.name}</span>
+                        {selectedTheme === theme.id && (
+                          <div className="absolute -top-1 -left-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center">
+                            <Check className="w-3 h-3 text-primary-foreground" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div>
-                    <span className="text-sm">نسخ تلقائي كل 24 ساعة</span>
-                    {lastAutoSave && <p className="text-[10px] text-muted-foreground mt-0.5">آخر حفظ: {lastAutoSave}</p>}
+              </CardContent>
+            </Card>
+
+            {/* Data & Backup */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center">
+                    <HardDrive className="w-4 h-4 text-white" />
+                  </div>
+                  البيانات والنسخ الاحتياطي
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Auto-save */}
+                <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <Save className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">الحفظ التلقائي</p>
+                      <p className="text-[10px] text-muted-foreground">نسخ تلقائي كل 24 ساعة{lastAutoSave ? ` · آخر حفظ: ${lastAutoSave}` : ''}</p>
+                    </div>
                   </div>
                   <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">مفعّل</span>
                 </div>
-              </div>
 
-              <Separator />
-
-              {/* Theme Picker */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Palette className="w-5 h-5 text-muted-foreground" />
-                  <p className="text-sm font-medium">لون التطبيق</p>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {COLOR_THEMES.map(theme => (
-                    <button
-                      key={theme.id}
-                      onClick={() => onThemeChange(theme.id)}
-                      className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
-                        selectedTheme === theme.id
-                          ? 'border-primary shadow-md scale-105'
-                          : 'border-transparent hover:border-border'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${theme.primary} shadow-sm`} />
-                      <span className="text-xs font-medium">{theme.name}</span>
-                      {selectedTheme === theme.id && (
-                        <div className="absolute -top-1 -left-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center">
-                          <Check className="w-3 h-3 text-primary-foreground" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Backup & Restore */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <HardDrive className="w-5 h-5 text-muted-foreground" />
-                  <p className="text-sm font-medium">النسخ الاحتياطي</p>
-                </div>
+                {/* Backup Buttons */}
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant="outline"
-                    className="h-auto py-3 flex flex-col items-center gap-1"
+                    className="h-auto py-3 flex flex-col items-center gap-2 rounded-xl"
                     onClick={onCreateBackup}
                     disabled={backupLoading}
                   >
-                    <Download className="w-5 h-5 text-blue-600" />
-                    <span className="text-xs">إنشاء نسخة</span>
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                      <Download className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <span className="text-xs font-medium">إنشاء نسخة</span>
                   </Button>
-                  <label className="Button-variant-outline h-auto py-3 flex flex-col items-center gap-1 border rounded-md cursor-pointer hover:bg-muted transition-colors">
-                    <Upload className="w-5 h-5 text-amber-600" />
-                    <span className="text-xs">استيراد نسخة</span>
+                  <label className="h-auto py-3 flex flex-col items-center gap-2 border rounded-xl cursor-pointer hover:bg-muted transition-colors">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                      <Upload className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <span className="text-xs font-medium">استيراد نسخة</span>
                     <input
                       type="file"
                       accept=".json"
@@ -4062,27 +4000,27 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
                   </label>
                 </div>
 
-                {/* Saved backups list */}
+                {/* Saved backups */}
                 {backups.length > 0 && (
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <p className="text-xs text-muted-foreground font-medium">النسخ المحفوظة ({backups.length})</p>
                     <div className="max-h-40 overflow-y-auto space-y-1">
                       {backups.map((b: any) => (
-                        <div key={b.id} className="flex items-center justify-between p-2 bg-background border rounded-lg">
+                        <div key={b.id} className="flex items-center justify-between p-2.5 bg-muted/40 rounded-xl">
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium truncate">{b.name}</p>
                             <p className="text-[10px] text-muted-foreground">{b.sizeFormatted} · {new Date(b.createdAt).toLocaleDateString('ar-EG')}</p>
                           </div>
                           <div className="flex gap-1">
                             <button
-                              className="p-1.5 hover:bg-emerald-50 rounded-md transition-colors"
+                              className="p-1.5 hover:bg-emerald-50 rounded-lg transition-colors"
                               title="استعادة"
                               onClick={() => onRestoreBackup(b.id)}
                             >
                               <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
                             </button>
                             <button
-                              className="p-1.5 hover:bg-red-50 rounded-md transition-colors"
+                              className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"
                               title="حذف"
                               onClick={() => onDeleteBackup(b.id)}
                             >
@@ -4094,33 +4032,22 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
                     </div>
                   </div>
                 )}
-              </div>
+              </CardContent>
+            </Card>
 
-              <Separator />
-
-              <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">عيادة المغازى</p>
-                    <p className="text-xs text-muted-foreground">نظام إدارة العيادة v2.0</p>
-                  </div>
+            {/* App Info */}
+            <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                  <Stethoscope className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">عيادة المغازى</p>
+                  <p className="text-[10px] text-muted-foreground">نظام إدارة العيادة v2.0</p>
                 </div>
               </div>
-              <Separator />
-              <div className="text-center py-4">
-                <div className={`w-16 h-16 bg-gradient-to-br ${COLOR_THEMES.find(t => t.id === selectedTheme)?.primary || 'from-emerald-500 to-teal-600'} rounded-2xl flex items-center justify-center mx-auto mb-3`}>
-                  <Stethoscope className="w-8 h-8 text-white" />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  نظام إدارة عيادة المغازى
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  إدارة المرضى والزيارات والجلسات والليزر والتقارير
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
@@ -4337,79 +4264,6 @@ function FinanceSection({ transactions, financeSummary, loading, onAdd, onEdit, 
 }
 
 // ═══════════════════════════════════════════════════════════════
-// CALENDAR SECTION
-// ═══════════════════════════════════════════════════════════════
-function CalendarSection({ month, onMonthChange, visits, sessions }: any) {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
-
-  const dateStr = (d: Date) => d.toISOString().split('T')[0]
-
-  const dayVisits = selectedDate ? (visits || []).filter((v: any) => dateStr(new Date(v.visitDate)) === dateStr(selectedDate)) : []
-  const daySessions = selectedDate ? (sessions || []).filter((s: any) => dateStr(new Date(s.sessionDate)) === dateStr(selectedDate)) : []
-
-  // Get dates with events
-  const eventDates = useMemo(() => {
-    const dates = new Set<string>()
-    ;(visits || []).forEach((v: any) => { if (v.visitDate) dates.add(dateStr(new Date(v.visitDate))) })
-    ;(sessions || []).forEach((s: any) => { if (s.sessionDate) dates.add(dateStr(new Date(s.sessionDate))) })
-    return dates
-  }, [visits, sessions])
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="p-4 flex justify-center">
-          <CalendarComponent
-            mode="single"
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-            month={month}
-            onMonthChange={onMonthChange}
-            className="rounded-md border"
-            modifiers={{ hasEvent: (date) => eventDates.has(dateStr(date)) }}
-            modifiersStyles={{ hasEvent: { fontWeight: 'bold', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '50%' } }}
-          />
-        </CardContent>
-      </Card>
-
-      {selectedDate && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{formatDate(selectedDate)}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {dayVisits.length === 0 && daySessions.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">لا توجد أحداث في هذا اليوم</p>
-            ) : (
-              <div className="space-y-2">
-                {dayVisits.map((v: any) => (
-                  <div key={v.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded-lg">
-                    <Stethoscope className="w-4 h-4 text-blue-600 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{v.patient?.name || '—'}</p>
-                      <p className="text-xs text-muted-foreground">زيارة - {formatDateTime(v.visitDate)}</p>
-                    </div>
-                  </div>
-                ))}
-                {daySessions.map((s: any) => (
-                  <div key={s.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded-lg">
-                    <CalendarDays className="w-4 h-4 text-purple-600 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{s.patient?.name || '—'}</p>
-                      <p className="text-xs text-muted-foreground">{s.service?.name || 'جلسة'} - {formatDateTime(s.sessionDate)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════
 // SHARED COMPONENTS
 // ═══════════════════════════════════════════════════════════════
 function MiniStatCard({ label, value, icon }: { label: string; value: string | number; icon: React.ReactNode }) {
@@ -4470,4 +4324,3 @@ function ReportSkeleton() {
 
 // ─── Re-export Popover for PatientSearchSelect ─────────────────
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar as CalendarComponent } from '@/components/ui/calendar'
