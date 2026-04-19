@@ -1945,6 +1945,19 @@ export default function Home() {
               darkMode={darkMode}
               onDarkModeToggle={() => setDarkMode(prev => !prev)}
               lastAutoSave={lastAutoSave}
+              // Booking / Appointment props
+              appointments={appointments}
+              appointmentsLoading={appointmentsLoading}
+              stats={appointmentStats}
+              statsLoading={appointmentStatsLoading}
+              patients={clinic.patients}
+              selectedDate={selectedAppointmentDate}
+              onDateChange={(d: string) => { setSelectedAppointmentDate(d); fetchAppointments({ date: d }); fetchAvailableSlots(d) }}
+              onAddAppointment={() => { setAppointmentForm({ patientId: '', appointmentDate: selectedAppointmentDate, time: '13:00', duration: '20', type: 'new_visit', status: 'pending', paymentMethod: '', amount: '', notes: '' }); fetchAvailableSlots(selectedAppointmentDate); setAddAppointmentOpen(true) }}
+              onEditAppointment={openEditAppointment}
+              onDeleteAppointment={(id: string) => confirmDelete('appointment', id)}
+              onSendAppointmentWhatsApp={handleSendAppointmentWhatsApp}
+              onRefreshAppointments={() => { fetchAppointments({ date: selectedAppointmentDate }); fetchAppointmentStats() }}
             />
           )}
         </div>
@@ -5151,9 +5164,9 @@ function BookingSection({ appointments, loading, stats, statsLoading, patients, 
 // ═══════════════════════════════════════════════════════════════
 // MORE TAB
 // ═══════════════════════════════════════════════════════════════
-function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts, alertsLoading, onAddService, onEditService, onDeleteService, onAddAlert, onMarkAlertRead, onDeleteAlert, onRefreshServices, onRefreshAlerts, selectedTheme, onThemeChange, syncConnected, syncConnectionInfo, syncLastTime, backups, backupLoading, onCreateBackup, onImportBackup, onRestoreBackup, onDeleteBackup, transactions, financeSummary, financeLoading, onAddTransaction, onEditTransaction, onDeleteTransaction, onRefreshFinance, reportSubTab, onReportSubTabChange, dailyReport, weeklyReport, monthlyReport, reportsLoading, clinicServices, onRefreshReports, darkMode, onDarkModeToggle, lastAutoSave }: any) {
+function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts, alertsLoading, onAddService, onEditService, onDeleteService, onAddAlert, onMarkAlertRead, onDeleteAlert, onRefreshServices, onRefreshAlerts, selectedTheme, onThemeChange, syncConnected, syncConnectionInfo, syncLastTime, backups, backupLoading, onCreateBackup, onImportBackup, onRestoreBackup, onDeleteBackup, transactions, financeSummary, financeLoading, onAddTransaction, onEditTransaction, onDeleteTransaction, onRefreshFinance, reportSubTab, onReportSubTabChange, dailyReport, weeklyReport, monthlyReport, reportsLoading, clinicServices, onRefreshReports, darkMode, onDarkModeToggle, lastAutoSave, appointments, appointmentsLoading, stats, statsLoading, patients, selectedDate, onDateChange, onAddAppointment, onEditAppointment, onDeleteAppointment, onSendAppointmentWhatsApp, onRefreshAppointments }: any) {
   const moreMenuItems = [
-    { id: 'booking', label: 'سيستم الحجز', icon: <CalendarPlus className="w-5 h-5" />, color: 'from-cyan-500 to-blue-600', bgLight: 'bg-cyan-50', textColor: 'text-cyan-600', desc: 'حجز المواعيد وإدارتها', badge: appointmentStats?.summary?.today || 0 },
+    { id: 'booking', label: 'سيستم الحجز', icon: <CalendarPlus className="w-5 h-5" />, color: 'from-cyan-500 to-blue-600', bgLight: 'bg-cyan-50', textColor: 'text-cyan-600', desc: 'حجز المواعيد وإدارتها', badge: stats?.summary?.today || 0 },
     { id: 'services', label: 'الخدمات', icon: <Syringe className="w-5 h-5" />, color: 'from-blue-500 to-indigo-600', bgLight: 'bg-blue-50', textColor: 'text-blue-600', desc: 'إدارة خدمات العيادة والأسعار' },
     { id: 'alerts', label: 'التنبيهات', icon: <Bell className="w-5 h-5" />, color: 'from-amber-500 to-orange-600', bgLight: 'bg-amber-50', textColor: 'text-amber-600', desc: 'المتابعة والتذكيرات', badge: alerts?.filter((a: any) => !a.isRead).length > 0 ? alerts.filter((a: any) => !a.isRead).length : 0 },
     { id: 'finance', label: 'المالية', icon: <Wallet className="w-5 h-5" />, color: 'from-emerald-500 to-green-600', bgLight: 'bg-emerald-50', textColor: 'text-emerald-600', desc: 'إيرادات ومصروفات العيادة' },
@@ -5219,16 +5232,16 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
             <BookingSection
               appointments={appointments}
               loading={appointmentsLoading}
-              stats={appointmentStats}
-              statsLoading={appointmentStatsLoading}
-              patients={clinic.patients}
-              onAdd={() => { setAppointmentForm({ patientId: '', appointmentDate: selectedAppointmentDate, time: '13:00', duration: '20', type: 'new_visit', status: 'pending', paymentMethod: '', amount: '', notes: '' }); fetchAvailableSlots(selectedAppointmentDate); setAddAppointmentOpen(true) }}
-              onEdit={openEditAppointment}
-              onDelete={(id) => confirmDelete('appointment', id)}
-              onSendWhatsApp={handleSendAppointmentWhatsApp}
-              onRefresh={() => { fetchAppointments({ date: selectedAppointmentDate }); fetchAppointmentStats() }}
-              selectedDate={selectedAppointmentDate}
-              onDateChange={(d) => { setSelectedAppointmentDate(d); fetchAppointments({ date: d }); fetchAvailableSlots(d) }}
+              stats={stats}
+              statsLoading={statsLoading}
+              patients={patients}
+              onAdd={onAddAppointment}
+              onEdit={onEditAppointment}
+              onDelete={onDeleteAppointment}
+              onSendWhatsApp={onSendAppointmentWhatsApp}
+              onRefresh={onRefreshAppointments}
+              selectedDate={selectedDate}
+              onDateChange={onDateChange}
             />
           )}
 
