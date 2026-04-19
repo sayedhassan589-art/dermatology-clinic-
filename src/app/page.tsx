@@ -1774,6 +1774,8 @@ export default function Home() {
               onAddWaiting={() => setAddWaitingOpen(true)}
               onUpdateWaiting={handleUpdateWaitingStatus}
               onDeleteWaiting={(id) => { deleteWaitingQueueAPI(id).then(() => fetchWaitingQueue()).catch(() => toast.error('خطأ في الحذف')) }}
+              onGoToBooking={() => { setActiveTab('more'); setMoreSubTab('booking') }}
+              onAddLaserRecord={() => { setActiveTab('laser'); const ls = laserSettings; setLaserForm({ patientId: '', bodyArea: '', totalSessions: ls.default_total_sessions?.toString() || '8', sessionDate: todayStr(), nextSessionDate: '', status: 'active', packageId: '', price: '', paidAmount: '', notes: '', skinType: '', hairColor: '', skinSensitivity: '', energyLevel: ls.default_energy?.toString() || '', pulseDuration: ls.default_pulse?.toString() || '', spotSize: ls.default_spot_size?.toString() || '', machineUsed: ls.default_machine || '', freezeMethod: ls.default_freeze || '', numPulses: '' }); setAddLaserOpen(true) }}
             />
           )}
 
@@ -3458,7 +3460,7 @@ function PatientSearchSelect({ patients, value, onChange }: { patients: any[]; v
 // ═══════════════════════════════════════════════════════════════
 // DASHBOARD TAB
 // ═══════════════════════════════════════════════════════════════
-function DashboardTab({ clinic, waitingQueue, waitingLoading, onGoToPatients, onGoToVisits, onGoToSessions, onAddPatient, onAddVisit, onAddSession, onAlertClick, onRefresh, onAddWaiting, onUpdateWaiting, onDeleteWaiting }: any) {
+function DashboardTab({ clinic, waitingQueue, waitingLoading, onGoToPatients, onGoToVisits, onGoToSessions, onAddPatient, onAddVisit, onAddSession, onGoToBooking, onAddLaserRecord, onAlertClick, onRefresh, onAddWaiting, onUpdateWaiting, onDeleteWaiting }: any) {
   const d = clinic.dashboard
 
   if (clinic.dashboardLoading && !d) {
@@ -3496,18 +3498,26 @@ function DashboardTab({ clinic, waitingQueue, waitingLoading, onGoToPatients, on
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-5 gap-2">
         <Button variant="outline" className="h-auto py-3 flex-col gap-1.5 border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300" onClick={onAddPatient}>
           <Plus className="w-5 h-5 text-emerald-600" />
-          <span className="text-xs font-medium text-emerald-700">إضافة مريض</span>
+          <span className="text-[10px] font-medium text-emerald-700">إضافة مريض</span>
         </Button>
         <Button variant="outline" className="h-auto py-3 flex-col gap-1.5 border-blue-200 hover:bg-blue-50 hover:border-blue-300" onClick={onAddVisit}>
           <Stethoscope className="w-5 h-5 text-blue-600" />
-          <span className="text-xs font-medium text-blue-700">تسجيل زيارة</span>
+          <span className="text-[10px] font-medium text-blue-700">تسجيل زيارة</span>
         </Button>
         <Button variant="outline" className="h-auto py-3 flex-col gap-1.5 border-purple-200 hover:bg-purple-50 hover:border-purple-300" onClick={onAddSession}>
           <CalendarDays className="w-5 h-5 text-purple-600" />
-          <span className="text-xs font-medium text-purple-700">جلسة جديدة</span>
+          <span className="text-[10px] font-medium text-purple-700">جلسة جديدة</span>
+        </Button>
+        <Button variant="outline" className="h-auto py-3 flex-col gap-1.5 border-cyan-200 hover:bg-cyan-50 hover:border-cyan-300" onClick={onGoToBooking}>
+          <CalendarPlus className="w-5 h-5 text-cyan-600" />
+          <span className="text-[10px] font-medium text-cyan-700">حجز موعد</span>
+        </Button>
+        <Button variant="outline" className="h-auto py-3 flex-col gap-1.5 border-rose-200 hover:bg-rose-50 hover:border-rose-300" onClick={onAddLaserRecord}>
+          <Zap className="w-5 h-5 text-rose-600" />
+          <span className="text-[10px] font-medium text-rose-700">حالة ليزر</span>
         </Button>
       </div>
 
