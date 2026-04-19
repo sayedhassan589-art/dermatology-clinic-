@@ -2925,303 +2925,639 @@ function PatientDetailTab({
   onEditVisit, onEditSession, onDelete, onMarkAlertRead, services,
   onWhatsApp,
 }: any) {
+  const [viewMode, setViewMode] = useState<'timeline' | 'sections'>('timeline')
+
+  // Build unified timeline
+  const timeline = useMemo(() => {
+    const items: any[] = []
+
+    visits?.forEach((v: any) => {
+      items.push({
+        id: v.id, type: 'visit', date: new Date(v.visitDate || v.createdAt),
+        visitType: v.visitType, diagnosis: v.diagnosis, prescription: v.prescription,
+        examination: v.examination, fees: v.fees, paidAmount: v.paidAmount, notes: v.notes,
+        creator: v.creator?.name, status: v.visitType,
+      })
+    })
+
+    sessions?.forEach((s: any) => {
+      items.push({
+        id: s.id, type: 'session', date: new Date(s.sessionDate || s.createdAt),
+        serviceName: s.service?.name, status: s.status,
+        totalPrice: s.totalPrice, paidAmount: s.paidAmount, notes: s.notes,
+        creator: s.creator?.name,
+      })
+    })
+
+    ;(laserRecords || []).forEach((lr: any) => {
+      items.push({
+        id: lr.id, type: 'laser', date: new Date(lr.sessionDate || lr.createdAt),
+        bodyArea: lr.bodyArea, completedSessions: lr.completedSessions, totalSessions: lr.totalSessions,
+        nextSessionDate: lr.nextSessionDate, status: lr.status, price: lr.price, paidAmount: lr.paidAmount, notes: lr.notes,
+      })
+    })
+
+    notes?.forEach((n: any) => {
+      items.push({
+        id: n.id, type: 'note', date: new Date(n.createdAt),
+        content: n.content, section: n.section, isImportant: n.isImportant,
+        user: n.user?.name,
+      })
+    })
+
+    alerts?.forEach((a: any) => {
+      items.push({
+        id: a.id, type: 'alert', date: new Date(a.alertDate || a.createdAt),
+        title: a.title, message: a.message, alertType: a.alertType, isRead: a.isRead,
+      })
+    })
+
+    return items.sort((a, b) => b.date.getTime() - a.date.getTime())
+  }, [visits, sessions, notes, alerts, laserRecords])
+
+  // Filter timeline by active sub tab
+  const filteredTimeline = useMemo(() => {
+    if (activeSubTab === 'all' || activeSubTab === 'timeline') return timeline
+    return timeline.filter((item: any) => {
+      if (activeSubTab === 'visits') return item.type === 'visit'
+      if (activeSubTab === 'sessions') return item.type === 'session'
+      if (activeSubTab === 'laser') return item.type === 'laser'
+      if (activeSubTab === 'notes') return item.type === 'note'
+      if (activeSubTab === 'alerts') return item.type === 'alert'
+      return true
+    })
+  }, [timeline, activeSubTab])
+
+  // Group timeline by date
+  const groupedTimeline = useMemo(() => {
+    const groups: Record<string, any[]> = {}
+    filteredTimeline.forEach((item: any) => {
+      const dateKey = item.date.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })
+      if (!groups[dateKey]) groups[dateKey] = []
+      groups[dateKey].push(item)
+    })
+    return groups
+  }, [filteredTimeline])
+
+  const remaining = (totalVisitFees + totalSessionPrice) - (totalVisitPaid + totalSessionPaid)
+
   if (loading) {
     return <div className="space-y-3"><Skeleton className="h-40 rounded-xl" /><Skeleton className="h-60 rounded-xl" /></div>
   }
 
+  const getTimelineIcon = (type: string) => {
+    switch (type) {
+      case 'visit': return <Stethoscope className="w-4 h-4" />
+      case 'session': return <CalendarDays className="w-4 h-4" />
+      case 'laser': return <Zap className="w-4 h-4" />
+      case 'note': return <FileText className="w-4 h-4" />
+      case 'alert': return <Bell className="w-4 h-4" />
+      default: return <Circle className="w-4 h-4" />
+    }
+  }
+
+  const getTimelineColor = (type: string) => {
+    switch (type) {
+      case 'visit': return 'bg-blue-100 text-blue-600 border-blue-200'
+      case 'session': return 'bg-purple-100 text-purple-600 border-purple-200'
+      case 'laser': return 'bg-amber-100 text-amber-600 border-amber-200'
+      case 'note': return 'bg-emerald-100 text-emerald-600 border-emerald-200'
+      case 'alert': return 'bg-red-100 text-red-600 border-red-200'
+      default: return 'bg-gray-100 text-gray-600 border-gray-200'
+    }
+  }
+
+  const getTimelineLabel = (type: string) => {
+    switch (type) {
+      case 'visit': return 'زيارة'
+      case 'session': return 'جلسة'
+      case 'laser': return 'ليزر'
+      case 'note': return 'ملاحظة'
+      case 'alert': return 'تنبيه'
+      default: return ''
+    }
+  }
+
   return (
     <div className="space-y-4">
-      {/* Patient Info Card */}
-      <Card className="bg-gradient-to-l from-emerald-50 to-white border-emerald-200">
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
-                {patient.gender === 'أنثى' ? (
-                  <Baby className="w-7 h-7 text-emerald-600" />
-                ) : (
-                  <UserIcon className="w-7 h-7 text-emerald-600" />
-                )}
-              </div>
-              <div>
-                <h2 className="text-lg font-bold">{patient.name}</h2>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                  {patient.age && <span>{patient.age} سنة</span>}
-                  {patient.gender && <span>•</span>}
-                  {patient.gender && <span>{patient.gender}</span>}
-                  {patient.phone && <span>• {patient.phone}</span>}
-                </div>
-                {patient.fileNumber && (
-                  <Badge variant="outline" className="mt-1 text-xs">{patient.fileNumber}</Badge>
-                )}
-              </div>
+      {/* ─── PATIENT HEADER ─── */}
+      <Card className="overflow-hidden border-0 shadow-md">
+        <div className="bg-gradient-to-l from-emerald-600 via-teal-600 to-cyan-600 px-4 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
+              {patient.gender === 'أنثى' ? (
+                <Baby className="w-7 h-7 text-white" />
+              ) : (
+                <UserIcon className="w-7 h-7 text-white" />
+              )}
             </div>
-            <Button variant="outline" size="sm" onClick={onEditPatient}>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-bold text-white">{patient.name}</h2>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-emerald-100 mt-0.5">
+                {patient.age && <span>{patient.age} سنة</span>}
+                {patient.gender && <span>· {patient.gender}</span>}
+                {patient.phone && <span>· {patient.phone}</span>}
+              </div>
+              {patient.fileNumber && (
+                <Badge className="mt-1.5 bg-white/20 text-white text-[10px] border-white/30 hover:bg-white/30">{patient.fileNumber}</Badge>
+              )}
+            </div>
+            <Button variant="ghost" size="sm" className="text-white/80 hover:text-white hover:bg-white/10" onClick={onEditPatient}>
               <Edit3 className="w-4 h-4 ml-1" />
               تعديل
             </Button>
           </div>
+        </div>
 
+        <CardContent className="p-4 space-y-3">
+          {/* Diagnosis */}
           {patient.diagnosis && (
-            <div className="mt-3 p-2 bg-white rounded-lg">
-              <p className="text-xs text-muted-foreground">التشخيص</p>
-              <p className="text-sm font-medium">{patient.diagnosis}</p>
+            <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+              <div className="flex items-center gap-2 mb-1">
+                <Stethoscope className="w-3.5 h-3.5 text-blue-500" />
+                <p className="text-xs font-semibold text-blue-700">التشخيص</p>
+              </div>
+              <p className="text-sm text-blue-800">{patient.diagnosis}</p>
             </div>
           )}
 
-          {/* Payment Summary */}
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="p-2 bg-white rounded-lg text-center">
-              <p className="text-xs text-muted-foreground">إجمالي المستحق</p>
-              <p className="text-sm font-bold text-red-600">{formatCurrency(totalVisitFees + totalSessionPrice)}</p>
+          {/* Patient Info */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {patient.address && (
+              <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <span className="truncate">{patient.address}</span>
+              </div>
+            )}
+            {patient.nationalId && (
+              <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <span className="truncate">{patient.nationalId}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+              <Clock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <span>تسجيل: {formatDate(patient.createdAt)}</span>
             </div>
-            <div className="p-2 bg-white rounded-lg text-center">
-              <p className="text-xs text-muted-foreground">إجمالي المدفوع</p>
-              <p className="text-sm font-bold text-emerald-600">{formatCurrency(totalVisitPaid + totalSessionPaid)}</p>
+            <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+              <Activity className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <span>{visits.length} زيارة · {sessions.length} جلسة</span>
             </div>
           </div>
-          {(totalVisitFees + totalSessionPrice - totalVisitPaid - totalSessionPaid) > 0 && (
-            <div className="mt-2 p-2 bg-red-50 rounded-lg text-center">
-              <p className="text-xs text-muted-foreground">المتبقي</p>
-              <p className="text-sm font-bold text-red-600">{formatCurrency(totalVisitFees + totalSessionPrice - totalVisitPaid - totalSessionPaid)}</p>
+
+          {/* Financial Summary */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="p-3 bg-red-50 rounded-xl text-center border border-red-100">
+              <p className="text-[10px] text-red-500 font-medium">المستحق</p>
+              <p className="text-sm font-bold text-red-600">{formatCurrency(totalVisitFees + totalSessionPrice)}</p>
             </div>
-          )}
+            <div className="p-3 bg-emerald-50 rounded-xl text-center border border-emerald-100">
+              <p className="text-[10px] text-emerald-500 font-medium">المدفوع</p>
+              <p className="text-sm font-bold text-emerald-600">{formatCurrency(totalVisitPaid + totalSessionPaid)}</p>
+            </div>
+            <div className={`p-3 rounded-xl text-center border ${remaining > 0 ? 'bg-orange-50 border-orange-100' : 'bg-gray-50 border-gray-100'}`}>
+              <p className={`text-[10px] font-medium ${remaining > 0 ? 'text-orange-500' : 'text-gray-500'}`}>المتبقي</p>
+              <p className={`text-sm font-bold ${remaining > 0 ? 'text-orange-600' : 'text-gray-600'}`}>{formatCurrency(remaining)}</p>
+            </div>
+          </div>
 
           {/* Quick Actions */}
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" variant="outline" className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50" onClick={onAddVisit}>
-              <Stethoscope className="w-4 h-4 ml-1" />
-              زيارة
+          <div className="grid grid-cols-4 gap-2">
+            <Button size="sm" variant="outline" className="h-auto py-2.5 flex-col gap-1 rounded-xl border-blue-200 text-blue-600 hover:bg-blue-50" onClick={onAddVisit}>
+              <Stethoscope className="w-4 h-4" />
+              <span className="text-[10px]">زيارة</span>
             </Button>
-            <Button size="sm" variant="outline" className="flex-1 border-purple-200 text-purple-600 hover:bg-purple-50" onClick={onAddSession}>
-              <CalendarDays className="w-4 h-4 ml-1" />
-              جلسة
+            <Button size="sm" variant="outline" className="h-auto py-2.5 flex-col gap-1 rounded-xl border-purple-200 text-purple-600 hover:bg-purple-50" onClick={onAddSession}>
+              <CalendarDays className="w-4 h-4" />
+              <span className="text-[10px]">جلسة</span>
             </Button>
-            <Button size="sm" variant="outline" className="flex-1 border-amber-200 text-amber-600 hover:bg-amber-50" onClick={onAddAlert}>
-              <Bell className="w-4 h-4 ml-1" />
-              تنبيه
+            <Button size="sm" variant="outline" className="h-auto py-2.5 flex-col gap-1 rounded-xl border-amber-200 text-amber-600 hover:bg-amber-50" onClick={onAddAlert}>
+              <Bell className="w-4 h-4" />
+              <span className="text-[10px]">تنبيه</span>
             </Button>
-            <Button size="sm" variant="outline" className="flex-1 border-green-200 text-green-600 hover:bg-green-50" onClick={() => onWhatsApp(patient.id, patient.name, patient.phone)}>
-              <MessageCircle className="w-4 h-4 ml-1" />
-              واتساب
+            <Button size="sm" variant="outline" className="h-auto py-2.5 flex-col gap-1 rounded-xl border-green-200 text-green-600 hover:bg-green-50" onClick={() => onWhatsApp(patient.id, patient.name, patient.phone)}>
+              <MessageCircle className="w-4 h-4" />
+              <span className="text-[10px]">واتساب</span>
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Sub Tabs */}
-      <Tabs value={activeSubTab} onValueChange={v => onSubTabChange(v as any)}>
-        <TabsList className="w-full grid grid-cols-5">
-          <TabsTrigger value="visits" className="text-xs">الزيارات ({visits.length})</TabsTrigger>
-          <TabsTrigger value="sessions" className="text-xs">الجلسات ({sessions.length})</TabsTrigger>
-          <TabsTrigger value="laser" className="text-xs">الليزر ({(laserRecords || []).length})</TabsTrigger>
-          <TabsTrigger value="notes" className="text-xs">الملاحظات ({notes.length})</TabsTrigger>
-          <TabsTrigger value="alerts" className="text-xs">التنبيهات ({alerts.length})</TabsTrigger>
-        </TabsList>
+      {/* ─── TIMELINE / SECTION TOGGLE ─── */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={viewMode === 'timeline' ? 'default' : 'outline'}
+            className={viewMode === 'timeline' ? 'bg-emerald-600 hover:bg-emerald-700' : 'rounded-xl'}
+            onClick={() => { setViewMode('timeline'); onSubTabChange('all') }}
+          >
+            <Clock className="w-3.5 h-3.5 ml-1" />
+            السجل
+          </Button>
+          <Button
+            size="sm"
+            variant={viewMode === 'sections' ? 'default' : 'outline'}
+            className={viewMode === 'sections' ? 'bg-emerald-600 hover:bg-emerald-700' : 'rounded-xl'}
+            onClick={() => setViewMode('sections')}
+          >
+            <ClipboardList className="w-3.5 h-3.5 ml-1" />
+            الأقسام
+          </Button>
+        </div>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="outline" className="h-8 rounded-lg" onClick={onAddNote}>
+            <Plus className="w-3.5 h-3.5 ml-1" />
+            ملاحظة
+          </Button>
+        </div>
+      </div>
 
-        <TabsContent value="visits" className="mt-3">
-          <div className="flex justify-end mb-2">
-            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onAddVisit}>
-              <Plus className="w-4 h-4 ml-1" />
-              إضافة زيارة
-            </Button>
+      {/* ─── TIMELINE VIEW ─── */}
+      {viewMode === 'timeline' && (
+        <>
+          {/* Filter Chips */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {[
+              { id: 'all', label: 'الكل', count: timeline.length },
+              { id: 'visits', label: 'الزيارات', count: visits?.length || 0 },
+              { id: 'sessions', label: 'الجلسات', count: sessions?.length || 0 },
+              { id: 'laser', label: 'الليزر', count: (laserRecords || []).length },
+              { id: 'notes', label: 'الملاحظات', count: notes?.length || 0 },
+              { id: 'alerts', label: 'التنبيهات', count: alerts?.length || 0 },
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => onSubTabChange(f.id as any)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  activeSubTab === f.id
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-muted/60 text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {f.label} ({f.count})
+              </button>
+            ))}
           </div>
-          {visits.length === 0 ? (
-            <EmptyState icon={<Stethoscope className="w-10 h-10" />} title="لا توجد زيارات" description="لم يتم تسجيل أي زيارة بعد" />
+
+          {filteredTimeline.length === 0 ? (
+            <EmptyState icon={<Clock className="w-10 h-10" />} title="لا توجد سجلات" description="لم يتم تسجيل أي نشاط بعد" />
           ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {visits.map((v: any) => (
-                <Card key={v.id} className="hover:shadow-sm">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <StatusBadge status={v.visitType} />
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditVisit(v)}>
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => onDelete('visit', v.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
+            <div className="space-y-4">
+              {Object.entries(groupedTimeline).map(([dateLabel, items]) => (
+                <div key={dateLabel}>
+                  {/* Date Header */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                      <CalendarDays className="w-4 h-4 text-emerald-600" />
                     </div>
-                    <p className="text-sm font-medium">{formatDate(v.visitDate)}</p>
-                    {v.diagnosis && <p className="text-xs text-muted-foreground mt-1">{v.diagnosis}</p>}
-                    <div className="flex items-center gap-3 mt-2 text-xs">
-                      <span className="text-emerald-600 font-medium">الرسوم: {formatCurrency(v.fees)}</span>
-                      <span className="text-blue-600 font-medium">المدفوع: {formatCurrency(v.paidAmount)}</span>
-                    </div>
-                    {v.prescription && (
-                      <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
-                        <p className="font-medium text-blue-700 mb-0.5">الوصفة:</p>
-                        <p className="text-blue-600 whitespace-pre-wrap">{v.prescription}</p>
+                    <h3 className="text-sm font-bold text-emerald-700">{dateLabel}</h3>
+                    <div className="flex-1 h-px bg-border" />
+                    <span className="text-[10px] text-muted-foreground">{items.length} نشاط</span>
+                  </div>
+
+                  {/* Timeline Items */}
+                  <div className="space-y-2 mr-4 border-r-2 border-emerald-100 pr-4">
+                    {items.map((item: any, idx: number) => (
+                      <div key={item.id} className="relative">
+                        {/* Dot on timeline */}
+                        <div className={`absolute -right-[21px] top-3 w-3 h-3 rounded-full border-2 border-white ${
+                          item.type === 'visit' ? 'bg-blue-500' :
+                          item.type === 'session' ? 'bg-purple-500' :
+                          item.type === 'laser' ? 'bg-amber-500' :
+                          item.type === 'note' ? 'bg-emerald-500' : 'bg-red-500'
+                        }`} />
+
+                        <Card className="hover:shadow-sm transition-shadow">
+                          <CardContent className="p-3">
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${getTimelineColor(item.type)}`}>
+                                  {getTimelineIcon(item.type)}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-bold">{getTimelineLabel(item.type)}</span>
+                                    {item.type === 'visit' && <StatusBadge status={item.visitType} />}
+                                    {item.type === 'session' && <StatusBadge status={item.status} />}
+                                    {item.type === 'note' && item.isImportant && <Star className="w-3 h-3 text-amber-500 fill-amber-500" />}
+                                    {item.type === 'alert' && !item.isRead && <span className="w-2 h-2 bg-red-500 rounded-full" />}
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {item.date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                                    {item.creator && ` · ${item.creator}`}
+                                    {item.user && ` · ${item.user}`}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-0.5">
+                                {item.type === 'visit' && (
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEditVisit(item)}>
+                                    <Edit3 className="w-3 h-3" />
+                                  </Button>
+                                )}
+                                {item.type === 'session' && (
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEditSession(item)}>
+                                    <Edit3 className="w-3 h-3" />
+                                  </Button>
+                                )}
+                                {item.type === 'alert' && !item.isRead && (
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkAlertRead(item.id)}>
+                                    <Check className="w-3 h-3" />
+                                  </Button>
+                                )}
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => onDelete(item.type === 'visit' ? 'visit' : item.type === 'session' ? 'session' : item.type === 'laser' ? 'laser' : item.type === 'alert' ? 'alert' : 'note', item.id)}>
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Content based on type */}
+                            {item.type === 'visit' && (
+                              <>
+                                {item.diagnosis && <p className="text-sm font-medium mb-1">{item.diagnosis}</p>}
+                                {item.examination && (
+                                  <div className="p-2 bg-purple-50 rounded-lg mb-1.5">
+                                    <p className="text-[10px] font-semibold text-purple-600 mb-0.5">الفحص</p>
+                                    <p className="text-xs text-purple-800 whitespace-pre-wrap">{item.examination}</p>
+                                  </div>
+                                )}
+                                {item.prescription && (
+                                  <div className="p-2 bg-blue-50 rounded-lg mb-1.5">
+                                    <p className="text-[10px] font-semibold text-blue-600 mb-0.5">الوصفة</p>
+                                    <p className="text-xs text-blue-800 whitespace-pre-wrap">{item.prescription}</p>
+                                  </div>
+                                )}
+                                {item.notes && (
+                                  <p className="text-xs text-muted-foreground italic">"{item.notes}"</p>
+                                )}
+                                <div className="flex items-center gap-3 mt-2 text-xs">
+                                  <span className="text-red-600 font-medium">الرسوم: {formatCurrency(item.fees)}</span>
+                                  <span className="text-emerald-600 font-medium">المدفوع: {formatCurrency(item.paidAmount)}</span>
+                                </div>
+                              </>
+                            )}
+
+                            {item.type === 'session' && (
+                              <>
+                                <p className="text-sm font-medium">{item.serviceName || 'خدمة'}</p>
+                                {item.notes && <p className="text-xs text-muted-foreground mt-0.5">"{item.notes}"</p>}
+                                <div className="flex items-center gap-3 mt-2 text-xs">
+                                  <span className="text-purple-600 font-medium">السعر: {formatCurrency(item.totalPrice)}</span>
+                                  <span className="text-emerald-600 font-medium">المدفوع: {formatCurrency(item.paidAmount)}</span>
+                                </div>
+                              </>
+                            )}
+
+                            {item.type === 'laser' && (
+                              <>
+                                <p className="text-sm font-medium">{item.bodyArea}</p>
+                                <div className="w-full bg-gray-200 rounded-full h-2 my-2">
+                                  <div
+                                    className="bg-gradient-to-r from-amber-400 to-orange-500 h-2 rounded-full transition-all"
+                                    style={{ width: `${Math.min(((item.completedSessions || 1) / (item.totalSessions || 1)) * 100, 100)}%` }}
+                                  />
+                                </div>
+                                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                  <span>جلسات: {item.completedSessions || 1} / {item.totalSessions}</span>
+                                  {item.nextSessionDate && <span className="text-blue-600">القادمة: {formatDate(item.nextSessionDate)}</span>}
+                                </div>
+                                {item.price && (
+                                  <div className="flex items-center gap-3 mt-1.5 text-xs">
+                                    <span className="text-amber-600 font-medium">السعر: {formatCurrency(item.price)}</span>
+                                    <span className="text-emerald-600 font-medium">المدفوع: {formatCurrency(item.paidAmount)}</span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+
+                            {item.type === 'note' && (
+                              <p className="text-sm">{item.content}</p>
+                            )}
+
+                            {item.type === 'alert' && (
+                              <>
+                                <p className="text-sm font-medium">{item.title}</p>
+                                {item.message && <p className="text-xs text-muted-foreground mt-0.5">{item.message}</p>}
+                                <Badge variant="outline" className="text-[10px] mt-1">
+                                  {item.alertType === 'followup' ? 'متابعة' : item.alertType === 'payment' ? 'دفعة' : item.alertType === 'appointment' ? 'موعد' : 'تذكير'}
+                                </Badge>
+                              </>
+                            )}
+                          </CardContent>
+                        </Card>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
-        </TabsContent>
+        </>
+      )}
 
-        <TabsContent value="sessions" className="mt-3">
-          <div className="flex justify-end mb-2">
-            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onAddSession}>
-              <Plus className="w-4 h-4 ml-1" />
-              إضافة جلسة
-            </Button>
-          </div>
-          {sessions.length === 0 ? (
-            <EmptyState icon={<CalendarDays className="w-10 h-10" />} title="لا توجد جلسات" description="لم يتم حجز أي جلسة بعد" />
-          ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {sessions.map((s: any) => (
-                <Card key={s.id} className="hover:shadow-sm">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <StatusBadge status={s.status} />
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditSession(s)}>
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => onDelete('session', s.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                    <p className="text-sm font-medium">{s.service?.name || 'خدمة'}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(s.sessionDate)}</p>
-                    <div className="flex items-center gap-3 mt-2 text-xs">
-                      <span className="text-emerald-600 font-medium">السعر: {formatCurrency(s.totalPrice)}</span>
-                      <span className="text-blue-600 font-medium">المدفوع: {formatCurrency(s.paidAmount)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+      {/* ─── SECTIONS VIEW (Original Tabbed View) ─── */}
+      {viewMode === 'sections' && (
+        <Tabs value={activeSubTab} onValueChange={v => onSubTabChange(v as any)}>
+          <TabsList className="w-full grid grid-cols-5">
+            <TabsTrigger value="visits" className="text-xs">الزيارات ({visits.length})</TabsTrigger>
+            <TabsTrigger value="sessions" className="text-xs">الجلسات ({sessions.length})</TabsTrigger>
+            <TabsTrigger value="laser" className="text-xs">الليزر ({(laserRecords || []).length})</TabsTrigger>
+            <TabsTrigger value="notes" className="text-xs">الملاحظات ({notes.length})</TabsTrigger>
+            <TabsTrigger value="alerts" className="text-xs">التنبيهات ({alerts.length})</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="visits" className="mt-3">
+            <div className="flex justify-end mb-2">
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onAddVisit}>
+                <Plus className="w-4 h-4 ml-1" />
+                إضافة زيارة
+              </Button>
             </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="laser" className="mt-3">
-          {(laserRecords || []).length === 0 ? (
-            <EmptyState icon={<Zap className="w-10 h-10" />} title="لا توجد سجلات ليزر" description="لم يتم تسجيل أي جلسة ليزر لهذا المريض" />
-          ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {(laserRecords || []).map((lr: any) => (
-                <Card key={lr.id} className="hover:shadow-sm">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Zap className="w-4 h-4 text-amber-500" />
-                        <span className="font-medium text-sm">{lr.bodyArea}</span>
+            {visits.length === 0 ? (
+              <EmptyState icon={<Stethoscope className="w-10 h-10" />} title="لا توجد زيارات" description="لم يتم تسجيل أي زيارة بعد" />
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {visits.map((v: any) => (
+                  <Card key={v.id} className="hover:shadow-sm">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <StatusBadge status={v.visitType} />
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditVisit(v)}>
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => onDelete('visit', v.id)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <p className="text-sm font-medium">{formatDate(v.visitDate)}</p>
+                      {v.diagnosis && <p className="text-xs text-muted-foreground mt-1">{v.diagnosis}</p>}
+                      {v.prescription && (
+                        <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
+                          <p className="font-medium text-blue-700 mb-0.5">الوصفة:</p>
+                          <p className="text-blue-600 whitespace-pre-wrap">{v.prescription}</p>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-3 mt-2 text-xs">
+                        <span className="text-emerald-600 font-medium">الرسوم: {formatCurrency(v.fees)}</span>
+                        <span className="text-blue-600 font-medium">المدفوع: {formatCurrency(v.paidAmount)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="sessions" className="mt-3">
+            <div className="flex justify-end mb-2">
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onAddSession}>
+                <Plus className="w-4 h-4 ml-1" />
+                إضافة جلسة
+              </Button>
+            </div>
+            {sessions.length === 0 ? (
+              <EmptyState icon={<CalendarDays className="w-10 h-10" />} title="لا توجد جلسات" description="لم يتم حجز أي جلسة بعد" />
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {sessions.map((s: any) => (
+                  <Card key={s.id} className="hover:shadow-sm">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <StatusBadge status={s.status} />
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditSession(s)}>
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => onDelete('session', s.id)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-sm font-medium">{s.service?.name || 'خدمة'}</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(s.sessionDate)}</p>
+                      <div className="flex items-center gap-3 mt-2 text-xs">
+                        <span className="text-emerald-600 font-medium">السعر: {formatCurrency(s.totalPrice)}</span>
+                        <span className="text-blue-600 font-medium">المدفوع: {formatCurrency(s.paidAmount)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="laser" className="mt-3">
+            {(laserRecords || []).length === 0 ? (
+              <EmptyState icon={<Zap className="w-10 h-10" />} title="لا توجد سجلات ليزر" description="لم يتم تسجيل أي جلسة ليزر لهذا المريض" />
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {(laserRecords || []).map((lr: any) => (
+                  <Card key={lr.id} className="hover:shadow-sm">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-amber-500" />
+                          <span className="font-medium text-sm">{lr.bodyArea}</span>
+                        </div>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => onDelete('laser', lr.id)}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                      <div
-                        className="bg-gradient-to-r from-amber-400 to-orange-500 h-2 rounded-full transition-all"
-                        style={{ width: `${Math.min(((lr.completedSessions || 0) / (lr.totalSessions || 1)) * 100, 100)}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>جلسات: {lr.completedSessions || 0} / {lr.totalSessions}</span>
-                      <span>{formatDate(lr.sessionDate)}</span>
-                    </div>
-                    {lr.nextSessionDate && (
-                      <p className="text-xs text-blue-600 mt-1">الجلسة القادمة: {formatDate(lr.nextSessionDate)}</p>
-                    )}
-                    {lr.price && (
-                      <div className="flex items-center gap-3 mt-1 text-xs">
-                        <span className="text-emerald-600">السعر: {formatCurrency(lr.price)}</span>
-                        <span className="text-blue-600">المدفوع: {formatCurrency(lr.paidAmount)}</span>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                        <div className="bg-gradient-to-r from-amber-400 to-orange-500 h-2 rounded-full transition-all" style={{ width: `${Math.min(((lr.completedSessions || 1) / (lr.totalSessions || 1)) * 100, 100)}%` }} />
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>جلسات: {lr.completedSessions || 1} / {lr.totalSessions}</span>
+                        <span>{formatDate(lr.sessionDate)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
-        <TabsContent value="notes" className="mt-3">
-          <div className="flex justify-end mb-2">
-            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onAddNote}>
-              <Plus className="w-4 h-4 ml-1" />
-              ملاحظة
-            </Button>
-          </div>
-          {notes.length === 0 ? (
-            <EmptyState icon={<FileText className="w-10 h-10" />} title="لا توجد ملاحظات" description="أضف ملاحظة لهذا المريض" />
-          ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {notes.map((n: any) => (
-                <Card key={n.id} className={n.isImportant ? 'border-amber-200 bg-amber-50/30' : ''}>
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        {n.isImportant && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />}
-                        <Badge variant="outline" className="text-[10px]">
-                          {n.section === 'clinical' ? 'طبي' : n.section === 'financial' ? 'مالي' : 'عام'}
-                        </Badge>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground">{formatDateTime(n.createdAt)}</span>
-                    </div>
-                    <p className="text-sm">{n.content}</p>
-                    {n.user && (
-                      <p className="text-[10px] text-muted-foreground mt-1">بواسطة: {n.user.name}</p>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+          <TabsContent value="notes" className="mt-3">
+            <div className="flex justify-end mb-2">
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onAddNote}>
+                <Plus className="w-4 h-4 ml-1" />
+                ملاحظة
+              </Button>
             </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="alerts" className="mt-3">
-          <div className="flex justify-end mb-2">
-            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onAddAlert}>
-              <Plus className="w-4 h-4 ml-1" />
-              تنبيه
-            </Button>
-          </div>
-          {alerts.length === 0 ? (
-            <EmptyState icon={<Bell className="w-10 h-10" />} title="لا توجد تنبيهات" description="أضف تنبيه لهذا المريض" />
-          ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {alerts.map((a: any) => (
-                <Card key={a.id} className={!a.isRead ? 'border-amber-200 bg-amber-50/30' : ''}>
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-[10px]">
-                          {a.alertType === 'followup' ? 'متابعة' : a.alertType === 'payment' ? 'دفعة' : a.alertType === 'appointment' ? 'موعد' : 'تذكير'}
-                        </Badge>
-                        {!a.isRead && <span className="w-2 h-2 bg-amber-500 rounded-full" />}
+            {notes.length === 0 ? (
+              <EmptyState icon={<FileText className="w-10 h-10" />} title="لا توجد ملاحظات" description="أضف ملاحظة لهذا المريض" />
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {notes.map((n: any) => (
+                  <Card key={n.id} className={n.isImportant ? 'border-amber-200 bg-amber-50/30' : ''}>
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          {n.isImportant && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />}
+                          <Badge variant="outline" className="text-[10px]">
+                            {n.section === 'clinical' ? 'طبي' : n.section === 'financial' ? 'مالي' : 'عام'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-muted-foreground">{formatDateTime(n.createdAt)}</span>
+                          {n.user && <span className="text-[10px] text-muted-foreground">· {n.user}</span>}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        {!a.isRead && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkAlertRead(a.id)}>
-                            <Check className="w-3.5 h-3.5" />
+                      <p className="text-sm">{n.content}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="alerts" className="mt-3">
+            <div className="flex justify-end mb-2">
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onAddAlert}>
+                <Plus className="w-4 h-4 ml-1" />
+                تنبيه
+              </Button>
+            </div>
+            {alerts.length === 0 ? (
+              <EmptyState icon={<Bell className="w-10 h-10" />} title="لا توجد تنبيهات" description="أضف تنبيه لهذا المريض" />
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {alerts.map((a: any) => (
+                  <Card key={a.id} className={!a.isRead ? 'border-amber-200 bg-amber-50/30' : ''}>
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px]">
+                            {a.alertType === 'followup' ? 'متابعة' : a.alertType === 'payment' ? 'دفعة' : a.alertType === 'appointment' ? 'موعد' : 'تذكير'}
+                          </Badge>
+                          {!a.isRead && <span className="w-2 h-2 bg-amber-500 rounded-full" />}
+                        </div>
+                        <div className="flex items-center gap-0.5">
+                          {!a.isRead && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkAlertRead(a.id)}>
+                              <Check className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => onDelete('alert', a.id)}>
+                            <Trash2 className="w-3.5 h-3.5" />
                           </Button>
-                        )}
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => onDelete('alert', a.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        </div>
                       </div>
-                    </div>
-                    <p className="text-sm font-medium">{a.title}</p>
-                    {a.message && <p className="text-xs text-muted-foreground mt-1">{a.message}</p>}
-                    <p className="text-[10px] text-muted-foreground mt-1">{formatDate(a.alertDate)}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                      <p className="text-sm font-medium">{a.title}</p>
+                      {a.message && <p className="text-xs text-muted-foreground mt-1">{a.message}</p>}
+                      <p className="text-[10px] text-muted-foreground mt-1">{formatDate(a.alertDate)}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   )
 }
