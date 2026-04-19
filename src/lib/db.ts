@@ -6,13 +6,15 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient() {
   const dbUrl = process.env.DATABASE_URL || 'file:./db/custom.db'
-  const isRemote = dbUrl.startsWith('libsql://') || dbUrl.startsWith('https://')
 
-  if (isRemote) {
+  if (dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://')) {
+    console.log('[DB] Using PostgreSQL database')
+    return new PrismaClient({
+      log: ['error', 'warn'],
+    })
+  } else if (dbUrl.startsWith('libsql://') || dbUrl.startsWith('https://')) {
     console.log('[DB] Using remote Turso database')
     try {
-      // Dynamic import for Turso adapter (only when remote URL is configured)
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { PrismaLibSQL } = require('@prisma/adapter-libsql')
       const adapter = new PrismaLibSQL({ url: dbUrl })
       return new PrismaClient({ adapter })

@@ -243,7 +243,7 @@ type MainTab = 'dashboard' | 'patients' | 'visits' | 'sessions' | 'laser' | 'mor
 type SubView = 'list' | 'detail' | 'form'
 type PatientDetailTab = 'visits' | 'sessions' | 'notes' | 'alerts' | 'laser'
 type ReportSubTab = 'daily' | 'weekly' | 'monthly'
-type MoreSubTab = 'services' | 'alerts' | 'finance' | 'reports' | 'settings'
+type MoreSubTab = 'list' | 'services' | 'alerts' | 'finance' | 'reports' | 'settings'
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP COMPONENT
@@ -264,7 +264,7 @@ export default function Home() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null)
   const [patientDetailTab, setPatientDetailTab] = useState<PatientDetailTab>('visits')
   const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('daily')
-  const [moreSubTab, setMoreSubTab] = useState<MoreSubTab>('services')
+  const [moreSubTab, setMoreSubTab] = useState<MoreSubTab>('list')
 
   // ─── Dialog states ────────────────────────────────────────
   const [addPatientOpen, setAddPatientOpen] = useState(false)
@@ -1326,7 +1326,7 @@ export default function Home() {
               variant={activeTab === tab.id ? 'default' : 'ghost'}
               size="sm"
               className={`gap-2 ${activeTab === tab.id ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
-              onClick={() => { setActiveTab(tab.id); setActiveSubView('list') }}
+              onClick={() => { setActiveTab(tab.id); setActiveSubView('list'); if (tab.id === 'more') setMoreSubTab('list') }}
             >
               {tab.icon}
               {tab.label}
@@ -1514,7 +1514,7 @@ export default function Home() {
           {filteredTabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => { setActiveTab(tab.id); setActiveSubView('list') }}
+              onClick={() => { setActiveTab(tab.id); setActiveSubView('list'); if (tab.id === 'more') setMoreSubTab('list') }}
               className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full touch-target transition-colors ${
                 activeTab === tab.id
                   ? 'text-emerald-600'
@@ -3684,30 +3684,69 @@ function ReportsTab({ reportSubTab, onSubTabChange, dailyReport, weeklyReport, m
 // MORE TAB
 // ═══════════════════════════════════════════════════════════════
 function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts, alertsLoading, onAddService, onEditService, onDeleteService, onAddAlert, onMarkAlertRead, onDeleteAlert, onRefreshServices, onRefreshAlerts, selectedTheme, onThemeChange, syncConnected, syncConnectionInfo, syncLastTime, backups, backupLoading, onCreateBackup, onImportBackup, onRestoreBackup, onDeleteBackup, transactions, financeSummary, financeLoading, onAddTransaction, onEditTransaction, onDeleteTransaction, onRefreshFinance, reportSubTab, onReportSubTabChange, dailyReport, weeklyReport, monthlyReport, reportsLoading, clinicServices, onRefreshReports, darkMode, onDarkModeToggle, lastAutoSave }: any) {
+  const moreMenuItems = [
+    { id: 'services', label: 'الخدمات', icon: <Syringe className="w-5 h-5" />, color: 'from-blue-500 to-indigo-600', bgLight: 'bg-blue-50', textColor: 'text-blue-600', desc: 'إدارة خدمات العيادة والأسعار' },
+    { id: 'alerts', label: 'التنبيهات', icon: <Bell className="w-5 h-5" />, color: 'from-amber-500 to-orange-600', bgLight: 'bg-amber-50', textColor: 'text-amber-600', desc: 'المتابعة والتذكيرات', badge: alerts?.filter((a: any) => !a.isRead).length > 0 ? alerts.filter((a: any) => !a.isRead).length : 0 },
+    { id: 'finance', label: 'المالية', icon: <Wallet className="w-5 h-5" />, color: 'from-emerald-500 to-green-600', bgLight: 'bg-emerald-50', textColor: 'text-emerald-600', desc: 'إيرادات ومصروفات العيادة' },
+    { id: 'reports', label: 'التقارير', icon: <BarChart3 className="w-5 h-5" />, color: 'from-purple-500 to-violet-600', bgLight: 'bg-purple-50', textColor: 'text-purple-600', desc: 'إحصائيات وتقارير شاملة' },
+    { id: 'settings', label: 'الإعدادات', icon: <Settings className="w-5 h-5" />, color: 'from-slate-500 to-zinc-600', bgLight: 'bg-slate-50', textColor: 'text-slate-600', desc: 'المظهر والنسخ الاحتياطي' },
+  ]
+
   return (
     <div className="space-y-4">
-      {/* Section Header */}
-      <div className="flex items-center gap-3 mb-2">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md">
-          <MoreHorizontal className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <h2 className="text-lg font-bold">المزيد</h2>
-          <p className="text-xs text-muted-foreground">إدارة وتقارير وإعدادات النظام</p>
-        </div>
-      </div>
+      {moreSubTab === 'list' || !['services','alerts','finance','reports','settings'].includes(moreSubTab) ? (
+        <>
+          {/* Section Header */}
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md">
+              <MoreHorizontal className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">المزيد</h2>
+              <p className="text-xs text-muted-foreground">إدارة وتقارير وإعدادات النظام</p>
+            </div>
+          </div>
 
-      <Tabs value={moreSubTab} onValueChange={v => onSubTabChange(v as any)}>
-        <TabsList className="w-full h-auto p-1 bg-muted/50 rounded-2xl">
-          <TabsTrigger value="services" className="gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl text-xs py-2.5"><Syringe className="w-3.5 h-3.5" />الخدمات</TabsTrigger>
-          <TabsTrigger value="alerts" className="gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl text-xs py-2.5"><Bell className="w-3.5 h-3.5" />التنبيهات</TabsTrigger>
-          <TabsTrigger value="finance" className="gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl text-xs py-2.5"><Wallet className="w-3.5 h-3.5" />المالية</TabsTrigger>
-          <TabsTrigger value="reports" className="gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl text-xs py-2.5"><BarChart3 className="w-3.5 h-3.5" />التقارير</TabsTrigger>
-          <TabsTrigger value="settings" className="gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-xl text-xs py-2.5"><Settings className="w-3.5 h-3.5" />الإعدادات</TabsTrigger>
-        </TabsList>
+          {/* Vertical Menu List */}
+          <div className="space-y-2">
+            {moreMenuItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onSubTabChange(item.id as any)}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-card border border-border hover:shadow-md hover:border-primary/20 transition-all active:scale-[0.98]"
+              >
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center shadow-sm shrink-0`}>
+                  <div className="text-white">{item.icon}</div>
+                </div>
+                <div className="flex-1 text-right min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-sm">{item.label}</p>
+                    {item.badge > 0 && (
+                      <span className="min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        {item.badge > 9 ? '9+' : item.badge}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                </div>
+                <ChevronLeft className="w-4 h-4 text-muted-foreground shrink-0" />
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Back Button */}
+          <button
+            onClick={() => onSubTabChange('list' as any)}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
+          >
+            <ChevronRight className="w-4 h-4" />
+            <span>رجوع للمزيد</span>
+          </button>
 
-        {/* Services */}
-        <TabsContent value="services" className="mt-4">
+          {/* Services */}
+          {moreSubTab === 'services' && (
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -3764,10 +3803,10 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+          )}
 
-        {/* Alerts */}
-        <TabsContent value="alerts" className="mt-4">
+          {/* Alerts */}
+          {moreSubTab === 'alerts' && (
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -3832,10 +3871,10 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+          )}
 
-        {/* Finance */}
-        <TabsContent value="finance" className="mt-4">
+          {/* Finance */}
+          {moreSubTab === 'finance' && (
           <FinanceSection
             transactions={transactions}
             financeSummary={financeSummary}
@@ -3845,10 +3884,10 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
             onDelete={onDeleteTransaction}
             onRefresh={onRefreshFinance}
           />
-        </TabsContent>
+          )}
 
-        {/* Reports */}
-        <TabsContent value="reports" className="mt-4">
+          {/* Reports */}
+          {moreSubTab === 'reports' && (
           <ReportsTab
             reportSubTab={reportSubTab}
             onSubTabChange={onReportSubTabChange}
@@ -3859,10 +3898,10 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
             services={clinicServices}
             onRefresh={onRefreshReports}
           />
-        </TabsContent>
+          )}
 
-        {/* Settings */}
-        <TabsContent value="settings" className="mt-4">
+          {/* Settings */}
+          {moreSubTab === 'settings' && (
           <div className="space-y-4">
             {/* Sync Status */}
             <Card className="border-0 shadow-sm">
@@ -4048,8 +4087,9 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
               </div>
             </div>
           </div>
-        </TabsContent>
-      </Tabs>
+          )}
+        </>
+      )}
     </div>
   )
 }
