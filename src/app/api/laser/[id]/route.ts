@@ -6,7 +6,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params
     const record = await db.laserRecord.findUnique({
       where: { id },
-      include: { patient: true, package: true, laserSessions: { orderBy: { sessionNumber: 'asc' } } },
+      include: { patient: true, package: true, laserSessions: { orderBy: { sessionNumber: 'asc' } }, laserNotes: { orderBy: { createdAt: 'desc' } } },
     })
     if (!record) return NextResponse.json({ error: 'غير موجود' }, { status: 404 })
     return NextResponse.json({ record })
@@ -43,7 +43,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(body.freezeMethod !== undefined && { freezeMethod: body.freezeMethod }),
         ...(body.numPulses !== undefined && { numPulses: body.numPulses ? parseInt(body.numPulses) : null }),
       },
-      include: { patient: true, package: true, laserSessions: true },
+      include: { patient: true, package: true, laserSessions: true, laserNotes: { orderBy: { createdAt: 'desc' } } },
     })
     return NextResponse.json({ record })
   } catch (error: any) {
@@ -54,6 +54,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    await db.laserNote.deleteMany({ where: { laserRecordId: id } })
     await db.laserSession.deleteMany({ where: { laserRecordId: id } })
     await db.laserRecord.delete({ where: { id } })
     return NextResponse.json({ success: true })

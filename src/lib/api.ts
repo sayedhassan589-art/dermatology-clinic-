@@ -315,6 +315,29 @@ export function getLaserStatsAPI(params?: { period?: string; dateFrom?: string; 
   return fetchAPI<any>(`/laser/stats${buildQuery(params as any)}`);
 }
 
+// ─── Laser Notes ────────────────────────────────────────────
+export function getLaserNotesAPI(laserRecordId: string) {
+  return fetchAPI<{ notes: any[] }>(`/laser/notes${buildQuery({ laserRecordId })}`);
+}
+
+export function createLaserNoteAPI(data: { laserRecordId: string; content: string; isImportant?: boolean; createdBy?: string }) {
+  return fetchAPI<{ note: any }>('/laser/notes', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateLaserNoteAPI(id: string, data: { content?: string; isImportant?: boolean }) {
+  return fetchAPI<{ note: any }>(`/laser/notes/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteLaserNoteAPI(id: string) {
+  return fetchAPI<{ success: boolean }>(`/laser/notes/${id}`, { method: 'DELETE' });
+}
+
 // ─── Finance ───────────────────────────────────────────────────
 export function getTransactionsAPI(params?: { type?: string; category?: string; dateFrom?: string; dateTo?: string }) {
   return fetchAPI<{ transactions: any[]; total: number }>(`/finance${buildQuery(params as any)}`);

@@ -160,6 +160,7 @@ model LaserRecord {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   laserSessions   LaserSession[]
+  laserNotes      LaserNote[]
 }
 
 model LaserPackage {
@@ -194,6 +195,17 @@ model LaserSession {
   price           Float?
   paidAmount      Float        @default(0)
   status          String       @default("completed")
+  createdBy       String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model LaserNote {
+  id              String       @id @default(cuid())
+  laserRecordId   String
+  laserRecord     LaserRecord  @relation(fields: [laserRecordId], references: [id], onDelete: Cascade)
+  content         String
+  isImportant     Boolean      @default(false)
   createdBy       String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt

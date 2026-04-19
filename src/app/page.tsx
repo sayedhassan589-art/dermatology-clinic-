@@ -37,6 +37,9 @@ import {
   getLaserSettingsAPI,
   updateLaserSettingsAPI,
   getLaserStatsAPI,
+  createLaserNoteAPI,
+  deleteLaserNoteAPI,
+  getLaserNotesAPI,
   getTransactionsAPI,
   createTransactionAPI,
   updateTransactionAPI,
@@ -370,6 +373,9 @@ export default function Home() {
   const [editLaserSessionOpen, setEditLaserSessionOpen] = useState(false)
   const [laserSessionForm, setLaserSessionForm] = useState({ sessionNumber: '', sessionDate: todayStr(), nextSessionDate: '', energyLevel: '', pulseDuration: '', spotSize: '', numPulses: '', freezeMethod: '', notes: '', painLevel: '', skinReaction: '', hairReduction: '', price: '', paidAmount: '', status: 'completed' })
   const [laserBodyFilter, setLaserBodyFilter] = useState('')
+  const [laserNoteContent, setLaserNoteContent] = useState('')
+  const [laserNoteImportant, setLaserNoteImportant] = useState(false)
+  const [laserNotesLoading, setLaserNotesLoading] = useState(false)
 
   // ─── Finance State ──────────────────────────────────────
   const [transactions, setTransactions] = useState<any[]>([])
@@ -1270,6 +1276,43 @@ export default function Home() {
     }
   }
 
+  const handleAddLaserNote = async () => {
+    if (!selectedLaserCase || !laserNoteContent.trim()) {
+      toast.error('يرجى كتابة محتوى الملاحظة')
+      return
+    }
+    try {
+      setLaserNotesLoading(true)
+      const newNote = await createLaserNoteAPI({
+        laserRecordId: selectedLaserCase.id,
+        content: laserNoteContent.trim(),
+        isImportant: laserNoteImportant,
+        createdBy: user?.id,
+      })
+      const updatedRecord = await getLaserRecordAPI(selectedLaserCase.id)
+      setSelectedLaserCase(updatedRecord.record)
+      setLaserNoteContent('')
+      setLaserNoteImportant(false)
+      toast.success('تم إضافة الملاحظة بنجاح')
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في إضافة الملاحظة')
+    } finally {
+      setLaserNotesLoading(false)
+    }
+  }
+
+  const handleDeleteLaserNote = async (noteId: string) => {
+    if (!selectedLaserCase) return
+    try {
+      await deleteLaserNoteAPI(noteId)
+      const updatedRecord = await getLaserRecordAPI(selectedLaserCase.id)
+      setSelectedLaserCase(updatedRecord.record)
+      toast.success('تم حذف الملاحظة')
+    } catch (err: any) {
+      toast.error(err.message || 'خطأ في حذف الملاحظة')
+    }
+  }
+
   const handleSaveLaserSettings = async () => {
     try {
       await updateLaserSettingsAPI(laserSettings)
@@ -1695,6 +1738,13 @@ export default function Home() {
               onAddSession={openAddLaserSession}
               onEditSession={openEditLaserSession}
               onDeleteSession={(id) => confirmDelete('laser_session', id)}
+              onAddLaserNote={handleAddLaserNote}
+              onDeleteLaserNote={handleDeleteLaserNote}
+              laserNoteContent={laserNoteContent}
+              setLaserNoteContent={setLaserNoteContent}
+              laserNoteImportant={laserNoteImportant}
+              setLaserNoteImportant={setLaserNoteImportant}
+              laserNotesLoading={laserNotesLoading}
               onRefresh={() => { fetchLaserRecords(); fetchLaserPackages(); fetchLaserStats(); fetchLaserSettings() }}
             />
           )}
@@ -5017,7 +5067,7 @@ function MoreTab({ moreSubTab, onSubTabChange, services, servicesLoading, alerts
 // ═══════════════════════════════════════════════════════════════
 // LASER SECTION - Comprehensive Module
 // ═══════════════════════════════════════════════════════════════
-function LaserSection({ records, packages, loading, patients, laserView, setLaserView, selectedLaserCase, setSelectedLaserCase, laserStats, laserStatsLoading, laserSettings, setLaserSettings, laserSettingsLoading, onSaveSettings, onAddRecord, onEditRecord, onDeleteRecord, onOpenCaseDetail, onAddPackage, onEditPackage, onDeletePackage, onAddSession, onEditSession, onDeleteSession, onRefresh }: any) {
+function LaserSection({ records, packages, loading, patients, laserView, setLaserView, selectedLaserCase, setSelectedLaserCase, laserStats, laserStatsLoading, laserSettings, setLaserSettings, laserSettingsLoading, onSaveSettings, onAddRecord, onEditRecord, onDeleteRecord, onOpenCaseDetail, onAddPackage, onEditPackage, onDeletePackage, onAddSession, onEditSession, onDeleteSession, onAddLaserNote, onDeleteLaserNote, laserNoteContent, setLaserNoteContent, laserNoteImportant, setLaserNoteImportant, laserNotesLoading, onRefresh }: any) {
   const [laserSearch, setLaserSearch] = useState('')
   const [statusFilter, setLaserStatusFilter] = useState('')
 
@@ -5337,14 +5387,84 @@ function LaserSection({ records, packages, loading, patients, laserView, setLase
         </Card>
 
         {/* Case notes */}
-        {r.notes && (
-          <Card>
-            <CardContent className="p-4">
-              <h4 className="text-sm font-bold mb-2 flex items-center gap-2"><FileText className="w-4 h-4" />ملاحظات الحالة</h4>
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{r.notes}</p>
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2"><FileText className="w-4 h-4 text-amber-500" />ملاحظات الحالة</CardTitle>
+              <span className="text-xs text-muted-foreground">{(r.laserNotes || []).length} ملاحظة</span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Add note form */}
+            <div className="space-y-2">
+              <Textarea
+                placeholder="اكتب ملاحظة جديدة لهذه الحالة..."
+                value={laserNoteContent || ''}
+                onChange={e => setLaserNoteContent(e.target.value)}
+                className="min-h-[70px] text-sm resize-none"
+              />
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={laserNoteImportant || false}
+                    onChange={e => setLaserNoteImportant(e.target.checked)}
+                    className="rounded border-gray-300 text-amber-500 focus:ring-amber-500 w-4 h-4"
+                  />
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Star className="w-3 h-3" />مهمة
+                  </span>
+                </label>
+                <Button
+                  size="sm"
+                  className="bg-gradient-to-l from-amber-500 to-orange-600 text-white text-xs"
+                  onClick={onAddLaserNote}
+                  disabled={laserNotesLoading || !laserNoteContent?.trim()}
+                >
+                  {laserNotesLoading ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin ml-1" />
+                  ) : (
+                    <Plus className="w-3.5 h-3.5 ml-1" />
+                  )}
+                  إضافة ملاحظة
+                </Button>
+              </div>
+            </div>
+
+            {/* Notes list */}
+            {(r.laserNotes || []).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-3 border rounded-lg bg-gray-50 dark:bg-gray-900">
+                لا توجد ملاحظات مسجلة لهذه الحالة
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {(r.laserNotes || []).map((note: any) => (
+                  <div key={note.id} className={`border rounded-lg p-3 transition-colors ${note.isImportant ? 'border-amber-200 bg-amber-50/50 dark:bg-amber-950/20' : 'hover:bg-gray-50 dark:hover:bg-gray-900'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          {note.isImportant && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />}
+                          <span className="text-[10px] text-muted-foreground">
+                            {formatDateTime(note.createdAt)}
+                          </span>
+                        </div>
+                        <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-400 hover:text-red-600 shrink-0"
+                        onClick={() => onDeleteLaserNote(note.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Actions */}
         <div className="flex gap-2">
